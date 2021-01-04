@@ -1,3 +1,4 @@
+[TOC]
 # understanding es6
 # 介绍
 Javascript的核心语言特性由ECMA-262标准制定。该标准定义的语言为ECMAScript，我们熟悉的在浏览器和Node环境中使用的JavaScript实际上是ECMAScript的一个超集。虽然浏览器和Node环境通过其它对象和方法为JavaScript添加了更多功能，但是该语言的仍然如ECMAScript中所定义。ECMA-262的不断发展对整个JavaScript的成功来说至关重要，而本书涵盖了该语言的最新重大更新——ECMAScript6中的变更。
@@ -13,4 +14,4 @@ Javascript的核心语言特性由ECMA-262标准制定。该标准定义的语�
 ## Promises
 ## Promises和异步编程
 
- JavaScript最强大的一部分在于它如何轻易地解决异步编程的问题。作为一种为Web而创建的语言，Javascript从一开始就需要可以响应异步用户交互，例如点击和按键。
+ JavaScript最强大的一部分在于它如何轻易地解决异步编程的问题。作为一种为Web而创建的语言，Javascript从一开始就需要可以响应异步用户交互，例如点击和按键。通过使用回调作为事件的替代方案，Node.js进一步普及了JavaScript中的异步编程。随着越来越多的程序开始使用异步编程，回调和事件已经不足以支撑开发人员想实现的一切。Promises就是这个问题的解决方案。
