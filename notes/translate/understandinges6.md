@@ -89,7 +89,17 @@ method1(function(err, result) {
 像该例中一样嵌套多层方法调用会创建一个难以理解和调试的纠结的代码网。当你想实现更为复杂的功能时，回调也会出现问题。假如你想要同步运行两个异步操作，并在它们都执行结束时通知你该如何做？假如你想同时开始两个异步操作但是只想获得首先结束的结果又该如何做？
 在这些场景中，你需要跟踪多个回调和清除操作，promises则可以大大改善这种情况。
 ## Promise基础
+一个Promise是一个异步操作的占位符。代替订阅一个事件或传递一个回调函数，函数可以返回一个promise，如：
+```
+// readFile承诺在未来某一时间点完成
+let promise = readFile("example.txt");
+```
+在这段代码中，`readFile()`实际上并不立刻开始读文件，这将稍后发生。而是该函数会返回一个表示异步读操作的promise对象，以便你可以在将来使用它。确切地说，你何时可以使用该结果完全取决于promise生命周期如何发挥作用。
 ### Promise生命周期
+每个promise都经历一个短暂的以*挂起（pending）*状态开始的生命周期，它表示异步操作还没结束。一个pending状态的promise被认为是*未解决的（unsettled）*。上个例子中的promise在`readFile()`返回它后就进入pending状态。一旦异步操作完成，promise就被认为是*解决了的（settled）*，并进入以下两个可能的状态：
+1. *完成（fulfilled）*：promise的异步操作已经成功完成。
+2. *拒绝（rejected）*：promise的异步操作由于错误或其他原因未能成功完成。
+
 ### 创建unsettled Promises
 ### 创建settled Promises
 #### 使用Promise.resolve()
