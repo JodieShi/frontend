@@ -99,7 +99,8 @@ let promise = readFile("example.txt");
 每个promise都经历一个短暂的以*挂起（pending）*状态开始的生命周期，它表示异步操作还没结束。一个pending状态的promise被认为是*未解决的（unsettled）*。上个例子中的promise在`readFile()`返回它后就进入pending状态。一旦异步操作完成，promise就被认为是*解决了的（settled）*，并进入以下两个可能的状态：
 1. *完成（fulfilled）*：promise的异步操作已经成功完成。
 2. *拒绝（rejected）*：promise的异步操作由于错误或其他原因未能成功完成。
-
+一个内部的`[[PromiseState]]`属性会被设为`"pending"`,`"fulfilled"`或`"rejected"`来反映promise的状态。该属性暴露在promise对象上，所以你无法通过编程来决定promise处于什么状态。但你可以通过使用`then()`方法来在promise状态发生变化时执行一个指定的动作。
+`then()`方法暴露在所有promise上，它接收两个参数。第一个参数是当promise进入fulfilled状态时调用的函数，第二个参数是promise进入rejected状态时调用的函数。类似于fulfillment函数，rejection函数也被传递了一些有关rejection的附加数据。
 ### 创建unsettled Promises
 ### 创建settled Promises
 #### 使用Promise.resolve()
