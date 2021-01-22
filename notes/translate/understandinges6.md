@@ -101,6 +101,7 @@ let promise = readFile("example.txt");
 2. *拒绝（rejected）*：promise的异步操作由于错误或其他原因未能成功完成。
 一个内部的`[[PromiseState]]`属性会被设为`"pending"`,`"fulfilled"`或`"rejected"`来反映promise的状态。该属性暴露在promise对象上，所以你无法通过编程来决定promise处于什么状态。但你可以通过使用`then()`方法来在promise状态发生变化时执行一个指定的动作。
 `then()`方法暴露在所有promise上，它接收两个参数。第一个参数是当promise进入fulfilled状态时调用的函数，第二个参数是promise进入rejected状态时调用的函数。类似于fulfillment函数，rejection函数也被传递了一些有关rejection的附加数据。
+|> 任何以上述形式实现了`then()`方法的对象都可以称为一个*thenable*。所有的promise都是thenable，但并不是所有的thenable都是promise。
 ### 创建unsettled Promises
 ### 创建settled Promises
 #### 使用Promise.resolve()
