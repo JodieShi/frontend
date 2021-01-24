@@ -102,16 +102,250 @@ let promise = readFile("example.txt");
 一个内部的`[[PromiseState]]`属性会被设为`"pending"`,`"fulfilled"`或`"rejected"`来反映promise的状态。该属性暴露在promise对象上，所以你无法通过编程来决定promise处于什么状态。但你可以通过使用`then()`方法来在promise状态发生变化时执行一个指定的动作。
 `then()`方法暴露在所有promise上，它接收两个参数。第一个参数是当promise进入fulfilled状态时调用的函数，第二个参数是promise进入rejected状态时调用的函数。类似于fulfillment函数，rejection函数也被传递了一些有关rejection的附加数据。
 |> 任何以上述形式实现了`then()`方法的对象都可以称为一个*thenable*。所有的promise都是thenable，但并不是所有的thenable都是promise。
+`then()`方法的两个参数都是可选的，所以你可以监听fulfillment（完成）和rejection（拒绝）的任何组合。例如，考虑以下`then()`调用集合：
+```
+let promise = readFile("example.txt");
+
+promise.then(function(contents) {
+  // fulfillment
+  console.log(contents);
+}, function(err) {
+  // rejection
+  console.error(err.message);
+});
+
+promise.then(function(contents) {
+  // fulfillment
+  console.log(contents);
+});
+
+promises.then(null, function(err) {
+  // rejection
+  console.error(err.message); 
+});
+```
+上述三个`then()`调用基于同一个promise。第一个调用同时监听fulfillment和rejection；第二个只监听fulfillment，错误不会被上报；第三个只监听rejection，不上报成功。
+Promise也有一个`catch()`方法，当只传递一个rejection处理函数时，它与`then()`方法行为相同。例如，下述`catch()`和`then()`调用功能上是相同的：
+```
+promise.catch(function(err) {
+  // rejection
+  console.error(err.message);
+});
+
+// is the same as:
+promise.then(null, function(err) {
+  // rejection
+  console.error(err.message);
+});
+```
+`then()`和`catch()`背后的目的是为了让你结合使用它们来正确地处理异步操作结果。这种系统比事件和回调更好，因为它使得操作是成功还是失败完全清楚（当错误存在时事件通常不会被触发，而在回调中你必须总是记得检查错误参数）。只需要知道如果你不附加一个rejection处理函数，所有失败将静默发生。总是附加一个rejection处理函数，即便它只是记录错误。
+即使是在promise处于settled态之后被加入任务队列，fulfillment或rejection处理函数也将被执行。这样，你可以在任何时候添加新的fulfillment和rejection处理函数并且保证它们会被调用。例如：
+```
+let promise = readFile("example.txt");
+
+// 初始fulfillment处理函数
+promise.then(function(contents) {
+  console.log(contents);
+
+  // 新增一个
+  promise.then(function(contents) {
+    console.log(contents);
+  });
+});
+```
+在上述代码段中，fulfillment处理函数中为同一个promise增加了一个新的fulfillment处理函数。此时promise已经处于完成态，所以新的fulfillmen处理函数被加入任务队列，并在就绪时被调用。rejection处理函数的工作方式相同。
+|> 任何一个`then()`或`catch()`调用都将创建一个新的任务，并在promise进入resolved态时被执行。但是这些任务最终会在一个单独的、严格为promises保留的任务队列中结束。只要你理解任务队列的一般工作原理，第二任务队列的确切细节对理解如何使用promises来说并不重要。
 ### 创建unsettled Promises
+新的promises由`Promise`构造函数创建。构造函数接收一个参数：一个被称为*执行器(executor)*的函数，它包含了初始化promise的代码。执行器被传递了两个名为`resolve()`和`reject()`的函数作为参数。`resolve()`函数在执行器成功完成并发出promise准备好了被解决的信号时被调用，而`reject()`函数则表明执行器已经失败。
+这里有一个使用Node.js中的promise来实现本章中早先提到的`readFile()`函数的例子：
+```
+// Node.js例子
+let fs = require("fs");
+
+function readFile(filename) {
+  return new Promise(function(resolve, reject) {
+    // 触发异步操作
+    fs.readFile(filename, { encoding: "utf-8" }, function(err, contents) {
+      // 检查错误
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      // 成功读取
+      resolve(contents);
+    });
+  });
+}
+
+let promise = readFile("example.txt");
+
+// 监听fulfilmment和rejection
+promise.then(function(contents) {
+  // fulfillment
+  console.log(contents);
+}, function(err) {
+  // rejection
+  console.error(err.message);
+})
+```
+在该例中，原生Node.js`fs.readFile()`异步调用被一个promise包裹。执行器或者传递一个错误对象给`reject()`函数，或者传递文件内容给`resolve()`函数。
+请记住，执行器当`readFile()`函数被调用时立刻执行。当执行器中的`resolve()`或`reject()`函数被调用时，一个新的任务被添加到任务队列来解决这个promise。这被称为*任务调度(job scheduling)*，如果你曾经使用过`setTimeout()`或`setInterval()`函数，那么你应该已经对它很熟悉。在任务调度中，你增加一个新任务到任务队列中，说：“不要现在执行它，在稍后去执行它”。例如，`setTimeout()`函数允许你指定将任务添加到队列前的时延：
+```
+// 在500ms过去后将方法加入到任务队列中
+setTimeout(function() {
+  console.log("Timeout");
+}, 500);
+
+console.log("Hi!");
+```
+上述代码调度一个任务，在500ms后将它加入到任务队列中。两个`console.log()`调用的输出结果如下：
+```
+Hi!
+Timeout
+```
+由于500ms的延迟，传递给`setTimeout()`的函数中的打印在`console.log("Hi!")`调用之后输出。
+Promise工作方式与之类似。Promise执行器在源码中任何出现在其之后的代码前执行。例如：
+```
+let promise = new Promise(function(resolve, reject) {
+  console.log("Promise");
+  resolve();
+});
+console.log("Hi!");
+```
+代码段的输出为：
+```
+Promise
+Hi!
+```
+调用`resolve()`触发一个异步操作。传递给`then()`和`catch()`的函数是异步执行的，因为它们也是被添加到任务队列中的。这里有一个例子：
+```
+let promise = new Promise(function(resolve, reject) {
+  console.log("Promise");
+  resolve();
+});
+
+promise.then(function() {
+  console.log("Resolved.");
+});
+
+console.log("Hi");
+```
+该例的输出为：
+```
+Promise
+Hi!
+Resolved.
+```
+注意虽然`then()`调用出现在`console.log("Hi!")`代码行前，但它直到稍后才执行（与执行器不同）。这是因为fulfillment和rejection处理函数总是在执行器完成后被添加到任务队列的尾端。
 ### 创建settled Promises
+由于Promise执行器的动态特性，`Promise`构造函数是创建unsettled promise的最佳方式。但是如果你只想要一个表示已知值的promise，那么调度一个仅仅传递值给`resolve()`函数的任务是没有意义的。取而代之，有两种创建给定指定值的settled promise的方法。
 #### 使用Promise.resolve()
+`Promise.resolve()`方法接收一个单一参数，并返回一个在fulfilled态的promise。这表明没有任务调度发生，你需要给这个promise增加一个或多个fulfillment处理函数来获取值。例如：
+```
+let promise = Promise.resolve(42);
+
+promise.then(function(value) {
+  console.log(value); // 42
+});
+```
+该代码段创建一个fulfilled态的promise，所以fulfillment处理函数收到42作为参数`value`。如果给该promise增加一个rejection处理函数，那么rejection处理函数永远不会被调用，因为该promise永远都不会进入rejected态。
 #### 使用Promise.reject()
+你也可以用`Promise.reject()`函数来创建一个rejected态的promise。这与`Promise.resolve()`工作方式类似，除了创建的promise是在rejected态，如下：
+```
+let promise = Promise.reject(42);
+
+promise.catch(function(value) {
+  console.log(value); // 42
+});
+```
+除了fulfillment处理函数，任何添加给这个promise的rejection处理函数都将被调用。
+|> 如果你传给`Promise.resolve()`或`Promise.reject()`方法一个promise，那么promise将被原样返回。
 #### Non-Promise Thenables
+`Promise.resolve()`和`Promise.reject()`也接收非promise thenables作为参数。当传递一个非promise thenable时，这些方法创建一个新的promise，它在`then()`方法之后被调用。
+当一个对象具备一个接收`resolve`和`reject`作为参数的`then()`方法时，一个非promise thenable就被创建了，如：
+```
+let thenable = {
+  then: function(resolve, reject) {
+    resolve(42);
+  }
+};
+```
+该例中的`thenable`对象除了`then()`方法外不具备任何与promise相关的特性。你可以通过调用`Promise.resolve()`来将这个`thenable`转换为一个fulfilled态的promise：
+```
+let thenable = {
+  then: function(resolve, reject) {
+    resolve(42);
+  }
+};
+
+let p1 = Promise.resolve(thenable);
+p1.then(function(value) {
+  console.log(value);
+});
+```
+在这个例子中，`Promise.resolve()`调用`thenable.then()`，因此可以确定promise状态。该promise的状态是fulfilled，因为在`then()`方法中调用了`resolve(42)`。一个叫做`p1`的fulfilled态promise被创建了，并通过`thenable`传递了一个值（即42），因此`p1`的fulfillment处理函数接收到42作为value。
+将相同的流程与`Promise.resolve()`一起使用，则可以通过thenable来创建一个rejected态的promise：
+```
+let thenable = {
+  then: function(resolve, rejcet) {
+    reject(42);
+  }
+};
+
+let p1 = Promise.resolve(thenable);
+p1.catch(function(value) {
+  console.log(value);  // 42
+});
+```
+这个例子和上一个类似，除了`thenable`是rejected态的。当`thenable.then()`执行时，一个值为42的rejected态promise被创建了，该值接下来被传递给`p1`的rejection处理函数。
+`Promise.resolve`和`Promise.reject()`的这种工作方式使得你可以方便地处理非promise thenables。许多库优先于在ECMAScript 6中介绍的promises已使用了thenables，因此为了后向兼容先前存在的库，转换thenable为正式promises的能力非常重要。当你不确定一个对象是否是一个promise的时候，通过`Promise.resolve()`或`Promise.reject()`来传递该对象（取决于你的预期结果）是最佳的得知方法，因为promises将被无修改地传递。
 ### 错误执行处理器
+当一个错误在执行器中被抛出时，该promise的rejection处理函数将被调用。例如：
+```
+let promise = new Promise(function(resolve, reject) {
+  throw new Error("Explosion!");
+});
+
+promise.catch(function(error) {
+  console.log(error.message);
+});
+```
+在上述代码中，执行器试图抛出一个错误。这是每个执行器内部的隐式`try-catch`，这样可以捕获错误，并传递给rejection处理函数。上述例子等价于下面的代码：
+```
+let promise = new Promise(function(resolve, reject) {
+  try {
+    throw new Error("Explosion!");
+  } catch(ex) {
+    reject(ex);
+  }
+});
+
+promise.catch(function(error) {
+  console.log(error.message);
+});
+```
+为简化此类常见用例，执行器可以捕获所有抛出的错误，但是只有当一个rejection处理函数存在时，执行器中抛出的错误才会被上报。
+此外，错误将被抑制。这在开发人员使用promises的前期就成为一个问题，JavaScript环境通过提供捕获rejected态promises的钩子函数来解决它。
 ## 全局Promise Rejection处理
+promises的一个最具争议的问题在于promise在无rejection处理函数而进入rejected态时静默失败。一些人认为这规范中的最大缺陷，因为它是JavaScript语言中唯一不显式表现出错误的部分。
+由于promises的天然特性，无法直观地确定一个promise的rejection是否被处理了。例如，考虑以下例子：
+```
+let rejected = Promise.reject(42);
+
+// 此时，rejected未被处理
+
+// 一段时间后
+rejected.catch(function(value) {
+  // 现在rejected被处理了
+  console.log(value)；
+});
+```
+你可以在任何时间调用`then()`和`catch()`函数，并且不管promise是否已经settled，它们都将正确地执行，这使得很难明确一个promise何时被处理。在该例子中，promise立刻进入rejected态，但是直到后来才被处理。
+虽然下个版本的ECMAScript可能会解决这个问题，浏览器和Node.js环境都实现了一些改变来解决开发者的这个痛点。它们不属于ECMAScript6标准，但却是使用promises的非常有用的工具。
 ### Node.js Rejection处理
 ### 浏览器Rejection处理
-## 链接Promises
+## 链式调用Promises
 ### 错误捕获
 ### 在Promise链中返回值
 ### 在Promise链中返回Promises
