@@ -344,11 +344,310 @@ rejected.catch(function(value) {
 你可以在任何时间调用`then()`和`catch()`函数，并且不管promise是否已经settled，它们都将正确地执行，这使得很难明确一个promise何时被处理。在该例子中，promise立刻进入rejected态，但是直到后来才被处理。
 虽然下个版本的ECMAScript可能会解决这个问题，浏览器和Node.js环境都实现了一些改变来解决开发者的这个痛点。它们不属于ECMAScript6标准，但却是使用promises的非常有用的工具。
 ### Node.js Rejection处理
+在Node.js中，`process`对象上有两个与promise rejection处理相关的事件：
+- `unhandledRejection`：当一个promise进入rejected态，但在该轮事件循环中没有rejection处理函数被调用时触发
+- `rejectionHandled`：当一个promise进入rejected态，且在该轮事件循环后有rejection处理函数被调用时触发
+这些事件旨在通过共同协作来帮助识别出进入rejected态但未被处理的promise。
+`unhandledRejection`事件处理函数接收两个参数：rejection原因（通常是一个错误对象）和进入rejected态的promise。下述代码演示了一个活动中的`unhandledRejection`：
+```
+let rejected;
+
+process.on("unhandledRejection", function(reason,promise) {
+  console.log(reason.message);  // "Explosion!"
+  console.log(rejected === promise);  // true
+});
+
+rejected = Promise.reject(new Error("Explosion!"));
+```
+该例创建了一个带错误对象的rejected态promise，并监听`unhandledRejection`事件。事件处理器接收错误对象作为第一个参数，接收该promise作为第二个。
+`rejectionHandled`事件只有一个参数，即进入rejected态的promise。例如：
+```
+let rejected;
+
+process.on("rejectionHandled", function(promise) {
+  console.log(rejected === promise);  // true
+});
+
+rejected = Promise.reject(new Error("Explosion!"));
+
+// 等待增加rejection处理函数
+setTimeout(function() {
+  rejected.catch(function(value) {
+    console.log(value.message);  // "Explosion!"
+  });
+}, 1000);
+```
+这里`rejectionHandled`事件在rejection处理函数最终调用的时候被触发。如果rejection处理函数是直接在`rejected`创建之后附加到`rejected`上的，那么这个事件将不会被触发。相反地，rejection处理函数将在创建`rejected`的事件循环的同一轮被调用，这没有什么用。
+为了正确地追踪可能未被处理的rejected态promise，可以使用`rejectionHandled`和`unhandledRejection`事件来维护一个可能未被处理的rejected态promise列表。然后等待一段时间来检查这个列表。例如：
+```
+let possiblyUnhandledRejections = new Map();
+
+// 当一个rejection是未处理的，将它加入map中
+process.on("unhandledRejection", function(reason, promise) {
+  possiblyUnhandledRejections.set(promise, reason);
+});
+
+process.on("rejectionHandled", function(promise) {
+  possiblyUnhandledRejections.delete(promise);
+});
+
+setInterval(function() {
+  possiblyUnhandledRejections.forEach(function(reason, promise) {
+    console.log(reason.message ? reason.message : reason);
+
+    // 处理这些rejections
+    handleRejection(promise, reason);
+  });
+
+  possiblyUnhandledRejection.clear();
+}, 60000);
+```
+这是一个简单的未处理rejection追踪器。它使用一个map来存储promise和它的rejection原因。每个promise是一个键，该promise的原因是对应的键值。每次`unhandledRejection`被触发时，promise和它的rejection原因被添加到map中。每次`rejectionHandled`被触发时，被处理的promise从map中被移除。这样，`possiblyUnhandledRejections`随着事件的调用而增缩。`setInterval()`函数调用周期性检查可能未处理的rejections列表，并在控制台中输出相关信息（实际上，除了记录日志，你可能想做另一些事，或者处理该rejection）。该例中使用了map而不是weak map，因为你需要周期性检查这个map来看其中当前有哪些promise，在weak map中这是不可能的。
+虽然这个例子是针对Node.js的，浏览器也实现了一个类似的机制来通知开发者未处理的rejections。
 ### 浏览器Rejection处理
+浏览器也会触发两类事件来帮助识别未处理的rejections。这些事件是window对象触发的，效果上和Node.js是相同的：
+- `unhandledrejection`：当一个promise进入rejected态并且该轮事件循环中没有rejection处理函数调用时触发
+- `rejectionhandled`：当一个promise进入rejected态并且在该轮事件循环后有rejection处理函数被调用时触发
+与Node.js实现中传递独立的参数给事件处理函数不同，这些浏览器事件处理函数接收一个拥有以下属性的事件对象：
+- `type`：事件名称（"unhandledrejection"或"rejectionhandled"）
+- `promise`：rejected态promise
+- `reason`：promise的rejection值
+浏览器实现的另一个区别是rejction值(`reason`)在这两个事件中都可以获得。例如：
+```
+let rejected;
+
+window.onhandledrejection = function(event) {
+  console.log(event.type);  // "unhandledrejection"
+  console.log(event.reason.message);  // "Explosion!"
+  console.log(rejected === event.promise); // true
+};
+
+window.onrejectionhandled = function(event) {
+  console.log(event.type);  // "rejectionhandled"
+  console.log(event.reason.message);  // "Explosion!"
+  console.log(rejected === event.promise); // true
+};
+
+rejected = Promise.reject(new Error("Explosion!"));
+```
+该段代码使用DOM 0级表示`onunhandledrejection`和`onrejectionhandled`来注册事件处理函数（如果你喜欢，也可以通过`addEventListener("unhandledrejection")`和`addEventListener("rejectionhandled")`）。每个事件处理函数接收一个包含rejected态promise信息的事件对象。在两个事件处理函数中，`type`，`promise`和`reason`属性都是可获得的。
+在浏览器中追踪未处理rejections的代码和在Node.js中的也非常相似：
+```
+let possiblyUnhandledRejections = new Map();
+
+// 当一个rejection是未处理的时候，将它加入map
+window.onunhandledrejection = function(event) {
+  possiblyUnhandledRejections.set(event.promise, event.reason);
+};
+
+window.onrejectionhandled = function(event) {
+  possiblyUnhandledRejections.delete(promise);
+};
+
+setInterval(function() {
+  possiblyUnhandledRejections.forEach(function(reason, promise) {
+    console.log(reason.message ? reason.message : reason);
+
+    // 一些处理rejections的方法
+    handleRejection(promise, reason);
+  });
+}, 60000);
+```
+上述实现几乎完全等同于Node.js中的实现。它使用相同的方法来在map中存储promise和它的rejection值，接着稍后检查他们。其中的唯一真实差别就在于从事件处理函数中获取的信息。
+处理promise rejections可能是棘手的，但是你已经开始看到promise到底可以多么强大。现在是时候采取下一步行动，链接多个promise。
 ## 链式调用Promises
+到目前为止，promise看起来是只是增量改进了组合使用回调和`setTimeout()`函数，但是promise远不止这些。更具体地来说，有多个方法来链接promise，从而完成更加复杂的异步行为。
+每次`then()`和`catch()`调用实际上创建并返回另一个promise。第二个promise只有当第一个已经进入fulfilled态或rejected态时才被解决（resolved）。考虑以下例子：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+p1.then(function(value) {
+  console.log(value);
+}).then(function() {
+  console.log("Finished");
+});
+```
+代码输出为：
+```
+42
+Finished
+```
+`p1.then()`调用返回第二个promise，并在其上调用`then()`。第二个`then()`fulfillment处理函数只有当第一个promise已经被解决了才调用。如果你拆解上述例子中的链接，它应该如下：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+let p2 = p1.then(function(value) {
+  console.log(value);
+});
+
+p2.then(function() {
+  console.log("Finished);
+});
+```
+在这个未链接的代码版本中，`p1.then()`的结果存储在`p2`中，接着`p2.then()`被调用了，来加上最后的fulfillment处理函数。如你所猜测的那样，`p2.then()`也返回一个promise。本例中只是没有使用这个promise。
 ### 错误捕获
-### 在Promise链中返回值
+promise链允许你捕获在前一个promise的fulfillment或rejection处理函数中可能出现的错误。例如：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+p1.then(function(value) {
+  throw new Error("Boom!");
+}).catch(function(error) {
+  console.log(error.message);  // "Boom!"
+});
+```
+在上述代码中，p1的fulfillment处理函数中抛出了一个错误。在第二个promise上，对`catch()`的链式调用可以通过它的rejection处理函数来接收这个错误。当rejection处理函数抛出一个错误时也是一样的：
+```
+let p1 = new Promise(function(resolve, reject) {
+  throw new Error("Explosion!");
+});
+
+p1.catch(function(error) {
+  console.log(error.message);   // "Explosion!"
+  throw new Error("Boom!");
+}).catch(function(error) {
+  console.log(error.message);   // "Boom!"
+});
+```
+这里，执行器抛出了一个错误并触发了`p1`promise的rejection处理函数。处理函数中抛出了另一个错误，并被第二个promise的rejection处理函数捕获。链式promise调用可以感知链上其它promise中的错误。
+|> 总是在promise链的最后有一个确保你可以正确处理任何可能出现的错误的rejection处理函数。
+### Promise链的返回值
+promise链的另一个重要方面是从一个promise向下一个传递数据的能力。你可能已经见过在执行器中传递给`resolve()`处理函数的值被传递给了该promise的fulfillment处理函数。你可以通过从fulfillment处理函数中明确一个返回值来在沿该链继续传递数据。例如：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+p1.then(function(value) {
+  console.log(value);    // "42"
+  return value + 1;
+}).then(function(value) {
+  console.log(value);    // "43"
+})；
+```
+`p1`的fulfillment处理函数在执行时返回了`value + 1`。由于`value`是42（从执行器中获得），fulfillment处理函数返回43。该值接着被传递给第二个promise的fulfillment处理函数，并在控制台中输出该值。
+你可以在rejection处理函数中做同样的事。当rejection处理函数被调用时，它可以返回一个值。如果它有返回值，那么它将被传到下一个promise的fulfillment里，如：
+```
+let p1 = new Promise(function(resolve, reject) {
+  reject(42);
+});
+
+p1.catch(function(value) {
+  // 第一个rejection处理函数
+  console.log(value);   // "42"
+  return value + 1;
+}).then(function(value) {
+  console.log(value);   // "43"
+});
+```
+此处，执行器调用`reject()`，携带的值为42。该值被传递给promise的rejection处理函数，并返回val+ 1。尽管返回值是由rejection处理函数返回的，它依旧被传递给链上的下一个promise的fulfillment处理函数。如有必要，某个promise的失败可以在整个链上获得恢复。
 ### 在Promise链中返回Promises
+从fulfillment和rejection处理函数中返回初始类型值可以在promise间传递数据，但是如果你想返回一个对象怎么办？如果对象是一个promise，那么需要执行一个额外的步骤来明确如何去处理。考虑如下例子：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+let p2 = new Promise(function(resolve, reject) {
+  resolve(43);
+});
+
+p1.then(function(value) {
+  // 第一个fulfillment处理函数
+  console.log(value);    // 42
+  return p2;
+}).then(function(value) {
+  // 第二个fulfillment处理函数
+  console.log(value);    // 43
+});
+```
+在这段代码中，`p1`调度了一个任务，resolve(42)。p1的fulfillment处理函数返回了`p2`，它是一个已经进入resolved态的promise。第二个fulfillment处理函数被调用了，因为`p2`已经fulfilled了。如果`p2`已经进入了rejected态，那么rejection处理函数（如果有的话）将取代第二个fulfillment处理函数被调用。
+该模式下需要重点认识的是，第二个fulfillment处理函数不是加给`p2`的，而是第三个promise。因此第二个fulfillment处理函数是被附加给这第三个promise的，使得之前的例子等价于：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+let p2 = new Promise(function(resolve, reject) {
+  resolve(43);
+});
+
+let p3 = p1.then(function(value) {
+  // 第一个fulfillment处理函数
+  console.log(value);   // 42
+  return p2;
+});
+
+p3.then(function(value) {
+  // 第二个fulfillment处理函数
+  console.log(value);
+});
+```
+此处可以清楚地看到第二个fulfillment处理函数是附加在`p3`上的，而不是`p2`。这是一个微小但重要的区别，因为如果`p2`进入rejected态，第二个fulfillment处理函数不会被调用。例如：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+let p2 = new Promise(function(resolve, reject) {
+  reject(43);
+});
+
+p1.then(function(value) {
+  // 第一个fulfillment处理函数
+  console.log(value);  // 42
+  return p2;
+}).then(function(value) {
+  // 第二个fulfillment处理函数
+  console.log(value);
+});
+```
+在这个例子中，第二个fulfillment处理函数永远都不会被调用，因为`p2`是rejected态的。然而你可以附加一个rejection处理函数来替代：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+let p2 = new Promise(function(resolve, reject) {
+  reject(43);
+});
+
+p1.then(function(value) {
+  // 第一个fulfillment处理函数
+  console.log(value);    // 42
+  reutrn p2;
+}).catch(function(value) {
+  // rejection处理韩叔叔
+  console.log(value);   // 43
+});
+```
+在这个例子中，rejection处理函数被调用了，因为`p2`进入rejected态。`p2`的rejected值43被传递给了这个rejection处理函数。
+从fulfillment或rejection处理函数中返回的thenables不会在promise执行器执行时改变。第一个定义的promise将会首先执行它的执行器，接着第二个promise执行器将会执行，如此以往。返回thenable只是简单地允许你定义一个附加的响应给promise的结果。你可以通过在一个fulfillment处理函数中创建一个新的promise来延迟fulfillment函数的执行。例如：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+
+p1.then(function(value) {
+  console.log(value);   // 42
+  
+  // 创建一个新的promise
+  let p2 = new Promise(function(resolve, reject) {
+    resolve(43);
+  });
+
+  return p2;
+}).then(function(value) {
+  console.log(value);   // 43
+});
+```
+在这个例子中，在`p1`的fulfillment处理函数中创建了一个新的promise。这表明第二个fulfillment处理函数直到`p2`进入fulfilled态才会被执行。这个模式在你想要等待前一个promise被解决后再触发下一个promise的时候非常有用。
 ## 多Promises响应
 ### Promise.all()方法
 ### Promise.race()方法
