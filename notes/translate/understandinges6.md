@@ -649,8 +649,95 @@ p1.then(function(value) {
 ```
 在这个例子中，在`p1`的fulfillment处理函数中创建了一个新的promise。这表明第二个fulfillment处理函数直到`p2`进入fulfilled态才会被执行。这个模式在你想要等待前一个promise被解决后再触发下一个promise的时候非常有用。
 ## 多Promises响应
+到此为止，本章中的每个例子处理的都是同时响应一个promise。然而，你可能会想要监控多个promise的进程来决定下一个动作。ECMAScript6提供两种监控多个promise的方法：`Promise.all()`和`Promise.race()`。
 ### Promise.all()方法
+`Promise.all()`方法接收一个单独参数，一个监控的promises的可迭代类型（类似于数组），并返回一个promise，只有当可迭代参数中的所有promise都解决了它才被解决。当可迭代参数中的所有promise都是fulfilled态时返回的promise才是fulfilled态的，如下例所示：
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+let p2 = new Promise(function(resolve, reject) {
+  resolve(43);
+});
+let p3 = new Promise(function(resolve, reject) {
+  resolve(44);
+});
+
+let p4 = Promise.all([p1, p2, p3]);
+
+p4.then(function(value) {
+  console.log(Array.isArray(value));    // true
+  console.log(value[0]);  // 42
+  console.log(value[1]);  // 43
+  console.log(value[2]);  // 44
+});
+```
+这里的每个promise携带一个数字被解决。`Promise.all()`调用创建promise `p4`，并在`p1`，`p2`和`p3`进入fulfilled态时最终进入fulfilled态。传递给`p4`的fulfillment处理函数的结果是一个数组，它包含每个解决值：42，43和44。值按照promise传递给`Promise.all()`的顺序存储，所以你可以匹配promise结果和对应的promise。
+如果任一个传递给`Promise.all()`的promise进入rejected态，那么返回的promise立刻进入rejected态，而不等其他promise完成。
+```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
+let p2 = new Promise(function(resolve, reject) {
+  reject(43);
+});
+let p3 = new Promise(function(resolve, reject) {
+  resolve(44);
+});
+
+let p4 = Promise.all([p1, p2, p3]);
+
+p4.catch(function(value) {
+  console.log(Array.isArray(value));    // false
+  console.log(value[0]);  // 43
+});
+```
+在这个例子中，`p2`携带值43进入rejected态。`p4`的rejection处理函数立刻被调用，而不等`p1`和`p3`结束执行（它们仍旧将执行，`p4`只是不会等待）。
+rejection处理函数总是接收一个单独的值而不是一个数组，该值是进入rejected态的那个promise携带的rejection值。在这个例子中，rejection处理函数被传递了43来映射`p2`的rejection。
 ### Promise.race()方法
+`Promise.race()`方法提供一个稍微不同的监控多个promise的方法。该方法也接收一个需要监控的promise的可迭代类型参数并返回一个promise，但是返回的promise在第一个promise被解决后就进入被解决的状态。不同于`Promise.all()`方法中等待所有promise被解决，`Promise.race()`方法在数组中任何一个promise进入fulfilled态时返回一个适当的promise。例如：
+```
+let p1 = Promise.resolve(42);
+
+let p2 = new Promise(function(resolve, reject) {
+  resolve(43);
+});
+
+
+let p3 = new Promise(function(resolve, reject) {
+  resolve(44);
+});
+
+let p4 = Promise.race([p1, p2, p3]);
+p4.then(function(value) {
+  console.log(value);
+});   // 42
+```
+在上述代码中，`p1`被创建为一个fulfilled态的promise，而其他的是调度任务。`p4`的fulfillment处理函数被和值42一起调用，并忽略其他的promise。传递给`Promise.race()`的promise是真在竞争来看谁被首先解决。如果第一个被解决的promise是fulfilled态，则返回的promise是fulfilled态的；如果第一个被解决的promise是rejected态的，那么返回的promise是rejected态的。这里有一个rejection的例子：
+```
+let p1 = new Promise(function(resolve, reject) {
+  setTimeout(function() {
+    resolve(42);
+  }, 100);
+});
+
+let p2 = new Promise(function(resolve, reject) {
+  reject(43);
+});
+
+let p3 = new Promise(function(resolve, reject) {
+  setTimeout(function() {
+    resolve(44);
+  }, 50);
+});
+
+let p4 = Promise.race([p1, p2, p3]);
+
+p4.catch(function(value) {
+  console.log(value);  // 43
+})
+```
+这里，`p1`和`p3`都使用了`setTimeout()`（在Node.js和网页浏览器中都可得）来延迟promise完成。结果是`p4`进入rejected因为`p2`在`p1`和`p3`被解决前进入了rejected态。虽然`p1`和`p3`最终进入fulfilled态，这些结果被忽略了，因为它们在`p2`进入rejected态之后出现。
 ## Promises继承
 ### 异步任务执行
 ## 总结
