@@ -739,5 +739,35 @@ p4.catch(function(value) {
 ```
 这里，`p1`和`p3`都使用了`setTimeout()`（在Node.js和网页浏览器中都可得）来延迟promise完成。结果是`p4`进入rejected因为`p2`在`p1`和`p3`被解决前进入了rejected态。虽然`p1`和`p3`最终进入fulfilled态，这些结果被忽略了，因为它们在`p2`进入rejected态之后出现。
 ## Promises继承
+与其它内置类型类似，你可以使用promise作为一个派生类的基类。这使得你可以定义你自己的promise变体来扩展内置promise的功能。例如假设你想要创建一个promise，除了`then()`和`catch()`方法以外，还可以调用它名为`success()`和`failure()`的方法。那么你可以创建以下的promise类型：
+```
+class MyPromise extends Promise {
+  // 使用默认构造函数
+  success(resolve, reject) {
+    return this.then(resolve, reject);
+  }
+
+  failure(reject) {
+    return this.catch(reject);
+  }
+}
+
+let promise = new MyPromise(function(resolve, reject) {
+  resolve(42);
+});
+
+promise.success(function(value) {
+  console.log(value);   // 42
+}).failure(function(value) {
+  console.log(value);
+});
+```
+在上述例子中，`MyPromise`是从`Promise`中派生的，并且有两个附加的方法。`success()`方法模仿`then()`方法，`failure()`方法模仿`catch()`方法。
+每个新增的方法使用`this`来调用它所模拟的方法。派生promise和内置promise的功能相同，除了现在可以按你所想调用`success()`和`failure()`方法。
+由于静态方法是继承的，因此在派生promise上仍然有`MyPromise.resolve()`，`MyPromise.reject()`，`MyPromise.race()`和`MyPromise.all()`方法。后面的两个方法和内置方法行为一致，但是前两个方法有些许差别。
+`MyPromise.resolve()`和`MyPromise.reject()`方法都将返回MyPromise实例，而忽略传递的值。因为这些方法使用`Symbol.species`属性（如第9章中所述）来决定返回的promise类型。如果向一个方法中传递了一个内置promise类型数据，这个promise将进入resolve态或者rejected态，方法将返回一个新的`MyPromise`，这样你可以附加fulfillment或rejection处理函数。例如：
+```
+
+```
 ### 异步任务执行
 ## 总结
