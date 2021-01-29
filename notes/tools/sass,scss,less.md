@@ -278,9 +278,51 @@ h1.error { ... }
 
 
 
+# Less
+Less也是一种CSS预处理语言，具有变量、函数、Mixin等特性，与Sass不同，Less是基于JavaScript实现的，可以运行在Node或浏览器端（客户端），而Sass是基于Ruby实现的，安装和使用需要基于Ruby环境（服务端）。
+## 安装与使用
+Less可以通过npm在命令行引入，也可以在浏览器中通过文件引入。
+### 安装
+```
+npm install -g less
+```
+### 命令行调用
+```
+lessc styles.less  // 编译并输出到标准输出
+lessc styles.less styles.css  // 编译并重定向到指定文件
+lessc --clean-css styles.less styles.min.css  // 编译为最小化形式CSS（需安装clean-css插件）
+```
+### 在代码中使用
+```
+var less = require('less');
+less.render('.class {width: (1 + 1)}', function(e, output) {
+  console.log(output.css);
+});
+```
+这将触发node进行编译，并输出
+```
+.class {
+  width: 2;
+}
+```
+也可向rende函数中添加一些配置选项，如；
+```
+var less = require('less');
 
-
-
-
-
-
+less.render('.class { width: (1 + 1) }',
+  {
+    paths: ['.', './lib'],  // 指定@import指令的搜索路径
+    filename: 'style.less', // 指定一个文件名
+    compress: true          // 压缩结果
+  },
+  function (e, output) {
+    console.log(output.css);
+  }
+);
+```
+### 浏览器中使用
+通过link引入，并通过script引入less.js：
+```
+<link rel="stylesheets/less" type="text/css" href="styles.less" />
+<script src="less.js" type="text/javascript"></script>
+```
