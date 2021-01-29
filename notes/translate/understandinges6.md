@@ -767,7 +767,140 @@ promise.success(function(value) {
 由于静态方法是继承的，因此在派生promise上仍然有`MyPromise.resolve()`，`MyPromise.reject()`，`MyPromise.race()`和`MyPromise.all()`方法。后面的两个方法和内置方法行为一致，但是前两个方法有些许差别。
 `MyPromise.resolve()`和`MyPromise.reject()`方法都将返回MyPromise实例，而忽略传递的值。因为这些方法使用`Symbol.species`属性（如第9章中所述）来决定返回的promise类型。如果向一个方法中传递了一个内置promise类型数据，这个promise将进入resolve态或者rejected态，方法将返回一个新的`MyPromise`，这样你可以附加fulfillment或rejection处理函数。例如：
 ```
+let p1 = new Promise(function(resolve, reject) {
+  resolve(42);
+});
 
+let p2 = MyPromise.resolve(p1);
+p2.success(function(value) {
+  console.log(value);    // 42
+});
+
+console.log(p2 instanceof MyPromise);    // true
 ```
+这里，p1是一个内置的promise类型，并被传递给了`MyPromise.resolve()`方法。该方法的结果，p2，是`MyPromise`的一个实例，p1的resolved值被传递给它的fulfillment处理函数。
+如果`MyPromise`的一个实例被传递给`MyPromise.resolve()`或`MyPromise.reject()`方法，那么它将被直接返回而不进入resolved。在其他所有方面，这两个方法和`Promise.resolve()`和`Promise.reject()`表现一致。
 ### 异步任务执行
+在第8章中，我曾介绍了生成器并展示给你如何使用它们来实现异步任务执行，如下：
+```
+let fs = require("fs");
+
+function run(taskDef) {
+  // 创建迭代器，使得它在其它地方可用
+  let task = taskDef();
+
+  // 开始任务
+  let result = task.next();
+
+  // 递归调用方法来持续调用next()
+  function step() {
+    // 如果有其他要做的
+    if (!result.done) {
+      if (typeof result.value === "function") {
+        result.value(function(err, data) {
+          if (err) {
+            result = task.throw(err);
+            return;
+          }
+
+          result = task.next(data);
+          step();
+        });
+      } else {
+        result = task.next(result.value);
+        step();
+      }
+    }
+  }
+
+  // 开始程序
+  step();
+}
+
+// 定义一个使用task执行器的函数
+function readFile(filename) {
+  return function(callback) {
+    fs.readFile(filename, callback);
+  };
+}
+
+// 执行任务
+run(function*() {
+  let contents = yield readFile("config.json");
+  doSomethingWith(contents);
+  console.log("done");
+});
+```
+这种实现有一些痛点。首先，将每个函数包裹在一个返回函数的函数中有一点令人迷惑（甚至这句话也是令人迷惑的）。其次，无法区分用作任务执行器回调的函数返回值和非回调的返回值。
+使用promise，你可以通过确认每个异步操作返回一个promise来大大地简化和泛化这个程序。该通用接口表明你可以大大地简化异步代码。这里有一个你可以简化该任务执行器的方法：
+```
+let fs = require("fs");
+
+function run(taskDef) {
+
+  // 创建迭代器
+  let task = taskDef();
+  
+
+  // 开始任务
+  let result = task.next();
+
+  // 递归调用方法来遍历
+  (function step() {
+    // 如果有其他要做的
+    if (!result.done) {
+      // 构造一个resolved态的promise来简化
+      let promise = Promise.resolve(result.value);
+      promise.then(function(value) {
+        result.task.next(value);
+        step();
+      }).catch(function(error) {
+        result = task.throw(error);
+        step();
+      });
+    }
+  }());
+}
+
+// 定义一个使用任务执行器的函数
+function readFile(filename) {
+  return new Promise(function(resolve, reject) {
+    fs.readFile(filename, function(err, contents) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(contents);
+      }
+    });
+  });
+}
+
+// 执行任务
+run(function*() {
+  let contents = yield readFile("config.json");
+  doSomethingWith(contents);
+  console.log("Done");
+});
+```
+在这个版本的代码中，一个泛化的`run()`函数执行一个生成器来创建一个迭代器。它调用`task.next()`来开始任务并迭代调用`step()`直到迭代器完成。
+在`step()`函数中，如果有其他的要做，那么`result.done`是`false`的。此时，`result.value`应该是一个promise，但是`Promise.resolve()`调用只是为了防止有问题的函数没有返回一个promise（记住，Promise.resolve()只传递任何传入的promise或包裹任何promise中的非promise）。接着，增加了一个fulfillment处理函数来获取promise的值并回传给迭代器。在这之后，`result`在`step()`函数调用自身之前被分配给下一个yield结果。
+rejection处理函数存储错误对象中的任何rejection结果。`task.throw()`方法将错误对象回传给迭代器，如果一个错误在任务中被捕获，`result`被分配给下一个yield结果。最后，`step()`在`catch()`中被调用来继续。
+这个`run()`函数可以执行任何使用`yield`来实现异步代码的生成器，而不必向开发者暴露promise（或回调）。实际上，由于函数调用返回值总是被转换为一个promise，这个函数甚至可以返回除了promise的其他东西。这表明同步和异步方法在使用 `yield`调用时都将正确工作，并且你永远都不需要检查返回值是否为promise。
+唯一需要关系的是确保异步函数，如`readFile`返回一个正确标识自己状态的promise。对于Node.js内置方法，这表明你需要转换这些方法来返回promise而不是使用回调。
+### 未来的异步任务执行
+在笔者写书同时，有正在进行的工作来向JavaScript中带入一个更简单的异步任务执行语法。`await`语法的工作正在进行，该语法可以密切反映前一节中基于promise的例子。基本想法是使用一个标记为`async`的函数而不是一个生成器，并使用`await`来在调用时替代`yield`，例如：
+```
+(async function() {
+  let contents = await readFile("config.json"); 
+  doSomethindWith(contents);
+  console.log("Done");
+})();
+```
+`function`前的`async`关键词表明函数将在异步状态下执行。`await`关键词表明`readFile("config.json")`函数调用应该返回一个promise，如果没有，返回值应该被一个promise包裹。正如上一节中`润()`的实现，`await`将会抛出一个错误，如果promise是rejected态的，或者从promise中返回一个值。最终的结果是你可以向写同步代码一样写异步代码，没有处理基于迭代器的状态机的负荷。
+`await`语法预计在ECMAScript 2017（ECMAScript 8）中落地。
 ## 总结
+Promise旨在通过提供比事件和回调更多的对异步操作的控制组合使用，来改进JavaScript中异步编程。Promise调度任务来加入JavaScript引擎任务队列中以便稍后执行，而另一个任务队列记录promise的fulfillment和rejection处理函数来确保正确的执行。
+Promise有三种状态：pending，fulfilled和rejected。一个promise从pending态开始并在成功执行时进入fulfilled态而在失败时进入rejected态。在任一情况下，处理函数可以在promise被处理的时候添加。`then()`方法允许你添加一个fulfillment处理函数和一个rejection处理函数，`catch()`方法只允许你添加一个rejection处理函数。
+你可以通过许多方式来链接多个promise并在其间传递信息。每次`then()`调用都创建并返回一个新的promise，它由前一个resolved而来。这种链可以用来触发对一系列异步事件的响应。你也可以使用`Promise.race()`或`Promise.all()`来监控多个promise处理状态并做出相应响应。
+异步任务调用在你组合使用生成器和promise的时候更简单，因为promise给出了一个异步操作可以返回的通用接口。这样你可以使用生成器和yield操作来等待异步响应并适当响应。
+多数新的网页API正基于promise被创建，你可以期待未来有更多的接口效仿。
