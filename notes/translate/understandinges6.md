@@ -11,6 +11,46 @@ Javascript的核心语言特性由ECMA-262标准制定。该标准定义的语�
 ### 帮助与支持
 ## 致谢
 
+# 块绑定
+传统上， 变量声明的工作方式是JavaScript编程中棘手的一部分。在多数基于C的语言，变量（或*绑定*）是在声明时创建的。然而，在JavaScript中并不是这样的。你的变量何时真正地被创建取决于你是如何声明它的，ECMAScript6提供了一些更方便控制作用域的选项。本章阐述了为什么经典的`var`声明是令人迷惑的，介绍了ECMAScript6中的块级绑定，并提供了一些使用它们的最佳实践。
+## 变量定义和提升
+使用`var`定义的变量被认为是处于函数（如果是在函数外定义的则为全局域）的顶部，而不管实际上声明是何处发生的，这叫做*提升(hoisting)*。为了解释提升做了什么，考虑以下函数定义：
+```
+function getValue(condition) {
+  
+  if (condition) {
+    var value = "blue";
+    
+    // 其它代码
+
+    return value;
+  } else {
+    // value在此处的值是undefined
+    return null;
+  }
+
+  // value在此处的值是undefined
+}
+```
+如果你不熟悉JavaScript，你可能认为变量value只会在`condition`的值是true的时候被创建。实际上，变量`value`无论如何都会被创建。在背后，JavaScript引擎变换`getValue`函数为如下形式：
+```
+function getValue(condition) {
+  var value;
+  
+  if (condition) {
+    value = "blue";
+
+    // 其它代码
+    return value;
+  } else {
+
+    return null;
+  }
+}
+```
+`value`的声明被提升到了顶部，而初始化值则在原来的地方。这说明变量`value`在`else`分支中实际上也是可以访问的，如果在那里访问，变量就是一个`undefined`值，因为它还没有被初始化。
+新的JavaScript开发者经常要花一定时间来习惯变量提升，误解这种独特行为可能会导致bug。为此，ECMAScript6引入令人块级作用域选项来强化对变量生命周期的控制。
+## 块级声明
 # Promises和异步编程
 
 JavaScript最强大的一部分在于它如何轻易地解决异步编程的问题。作为一种为Web而创建的语言，Javascript从一开始就需要可以响应异步用户交互，例如点击和按键。通过使用回调作为事件的替代方案，Node.js进一步普及了JavaScript中的异步编程。随着越来越多的程序开始使用异步编程，回调和事件已经不足以支撑开发人员想实现的一切。Promises则是该问题的解决方案。
