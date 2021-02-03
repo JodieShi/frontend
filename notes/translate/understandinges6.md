@@ -165,8 +165,92 @@ if (condition) {
 当`typeof`操作执行时`value`变量并不在TDZ中，因为它出现在`value`的声明块外。这表明当前没有`value`绑定，因此`typeof`直接返回`undefined`。
 TDZ只是块绑定的一个独特的地方。另一个独特的方面与在循环中使用它们有关。
 ## 循环中的块绑定
+可能开发人员最希望变量具有块级作用域的领域是在循环中，此时一次性计数变量只能在循环中被使用。例如，下面的代码在JavaScript中并不少见：
+```
+for (var i = 0; i < 10; i++) {
+  process(items[i]);
+}
+
+// i在此处依然可以被访问
+console.log(i);   // 10
+```
+在其他语言中，块级作用域是默认的，这个例子应该可以按预想的方式工作。，只有在`for`循环中才可以访问到`i`变量。然而，在JavaScript中，`i`在循环结束后依旧可以被访问，因为`var`声明被提升了。像下面代码中这样使用`let`来代替，则会获得预想的行为：
+```
+for (let i = 0; i < 10; i++) {
+  process(items[i]);
+}
+
+// 此处的i不可被访问，抛出一个错误
+console.log(i);
+```
+在这个例子中，变量`i`只在`for`循环中存在。一旦循环完成，变量在其它地方就不再可访问。
 ### 循环中的函数
+`var`的特性一直以来使得在循环中创建函数成为问题，因为循环变量可以在循环作用域外被访问。考虑以下代码：
+```
+var funcs = [];
+
+for (var i = 0; i < 10; i++) {
+  funcs.push(function() { console.log(i); });
+}
+
+funcs.forEach(function(func) {
+  func();  // 输出"10"10次
+});
+```
+你可能原先希望代码打印数字0到9，但是它在一行中输出了10次10。这是因为`i`在循环的每次迭代中被共享，表明每个在循环中被创建的函数共享同一个变量的引用。变量`i`在循环结束时的值为`10`，因此当`console.log(i)`被调用时，这个值每次都被打印。
+为了解决这个问题，开发者在循环内使用立即调用的函数表达式（immediately-invoked function expressions, IIFEs）来强制创建要迭代的变量的新副本，如下例所示：
+```
+var funcs = [];
+
+for (var i = 0; i < 10; i++) {
+  funcs.push((function(value) {
+    return function() {
+      console.log(value);
+    }
+  }(i)));
+}
+
+funcs.forEach(function(func) {
+  func();  // 输出0, 1, 2直到9
+});
+```
+这个版本在循环中使用IIFE。`i`变量被传递给了IIFE，它创建自己的副本并存储为`value`。这是本次迭代中使用的值，因此调用每个函数将按循环次数从0到9返回预想的值。幸运的是，ECMASript中的`let`和`const`块级绑定可以为你简化这个循环。
 ### 循环中的let声明
+`let`声明通过有效模仿前个例子中IIFE所做的来简化循环。在每次迭代中，循环创建一个新的变量并按前一次迭代中的同名变量来赋值。这表明你可以完全忽略IIFE并获得预想的结果，如下：
+```
+var funcs = [];
+
+for (let i = 0; i < 10; i++) {
+  funcs.push(function() {
+    console.log(i);
+  });
+}
+
+funcs.forEach(function(func) {
+  func();  // 输出0, 1, 2至9
+});
+```
+该循环与使用`var`和IIFE的工作方式完全一样，但是更为整洁。`let`声明在循环的每一轮创建一个新的变量`i`，所以循环中创建的每个函数都有自己的`i`副本。每个`i`的副本具有自己的值，并在循环每次迭代的开始创建和赋值，`for-in`和`for of`循环中也是一样的，如下所示：
+```
+var funcs = [],
+    object = {
+      a: true,
+      b: true,
+      c: true
+    };
+
+for (let key in object) {
+  funcs.push(function() {
+    console.log(key);
+  });
+}
+
+funcs.forEach(function(func) {
+  func();   // 输出 "a", "b"和"c"
+});
+```
+在这个例子中，`for-in`循环展示了与`for`循环相同的行为。循环的每一轮，创建新的`key`绑定，所以每个函数都有自己的`key`变量副本。结果是每个函数输出一个不同的值。如果使用`var`变量来声明`key`，那么所有函数都将输出"c"。
+|> 需要理解`let`声明在循环中的行为在标准中是一个特别定义的行为，并不是与`let`的非提升特性相关联的。实际上，`let`的早起实现并不具备这个行为，它是在后来才被加入的。
 ### 循环中的const声明
 ## 全局块绑定
 ## 新兴块绑定最佳实践
