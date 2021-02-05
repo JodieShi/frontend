@@ -381,9 +381,85 @@ if (map.count) {
 这个例子在如何使用`map.count`上有些模糊。`if`语句是为了检查`map.count`的存在还是值非零？`if`语句中的代码将继续执行，因为值1是真值。然而，如果`map.count`是0，或者说`map.count`不存在，那么if语句中的值将不会被执行。
 当它们出现在一个大型应用中是这些问题将很难识别和调试，这也是ECMAScript 6向语言中加入sets和maps的主要原因。
 |> JavaScript中有`in`操作符，它在对象中存在属性时返回`true`而不去读取对象的这个值。然而，`in`操作符也会搜索对象的原型，这使得它只有在对象为`null`原型时才是安全的。即使如此，许多开发者仍然错误地使用上述例子中的代码而不是使用`in`。
-## ECMAScript中的Sets
+## ECMAScript 6中的Sets
+ECMAScript 6新增了一个`Set`类型，为无重复值的排序列表。Sets允许快速访问包含的元素，使得追踪离散值更为高效。
+### 创建Sets并添加项
+Sets使用`new Sets()`创建，通过调用`add()`方法向一个set中添加项。你可以通过`size`属性来检查一个set中有多少项：
+```
+let set = new Set();
 
+set.add(5);
+set.add("5");
 
+console.log(set.size);   // 2
+```
+Sets不会强转值来确定它们是否相同。这表明一个set可以同时包含数字`5`和字符串`"5"`作为两个独立的项。（唯一的例外是-0和+0被认为是相同的。）你可以向set中添加多个对象，它们也讲保持唯一：
+```
+let set = new Set(),
+    key1 = {},
+    key2 = {};
+
+set.add(key1);
+set.add(key2);
+
+console.log(set.size);  // 2
+```
+由于`key1`和`key2`并未被转为字符串，它们在set中计为两个独立的项。（记住，如果它们呗转换为字符串，则都等于`"[Object Object]"`。）
+如果`add()`方法不止一次地在同一个值上调用，第一次调用后的所有调用都将被视为无效：
+```
+let set = new Set();
+set.add(5);
+set.add("5");
+set.add(5);  // 重复调用，将被忽略
+
+console.log(set.size);  // 2
+```
+你可以通过一个数组来初始化一个set，`Set`构造函数将保证值是唯一的。例如：
+```
+let set = new Set([1, 2, 3, 4, 5, 5, 5, 5]);
+console.log(set.size);   // 5
+```
+在则个例子中，一个有重复值的数组被用来初始化set。虽然在数组中出现了四次，数字`5`只在set中出现一次。这种功能使得转换已存在的代码或JSON结构为使用sets更为容易。
+|> `Set`构造函数实际上接收任何可迭代对象作为参数。数组可以工作是因为它默认是可迭代的，sets和maps也是。`Set`构造函数使用一个迭代器来从参数中获取值。（可迭代和迭代器在第8章中被详细讨论。）
+你可以使用`has()`方法来检测哪些值是在set中的，如下：
+```
+let set = new Set();
+set.add(5);
+set.add("5");
+
+console.log(set.has(5));  // true
+console.log(set.has(6));  // false
+```
+这里，`set.has(6)`将返回false，因为set中不包含这个值。
+### 移除值
+也可以从set中移除值。你可以通过`delete()`方法来移除单个值，或者你可以调用`clear()`方法来移除set中的所有值。下面的代码展示了这两种动作：
+```
+let set = new Set();
+set.add(5);
+set.add("5");
+
+console.log(set.has(5));   // true
+
+set.delete(5);
+console.log(set.has(5));  // false
+console.log(set.size);  // 1
+
+set.clear();
+
+console.log(set.has("5"));  // false
+console.log(set.size);  // 0
+```
+在调用`delete()`后，只移除了`5`；在`clear()`方法执行后，`set`变空。
+上述所有构成了一个追踪单独有序值的简单机制。然而，如果你想向set中添加多项并在每一项上执行某些操作该怎么办？这就是`forEach()`方法应该出现的地方。
+### sets的forEach()方法
+如果你已经习惯于使用数组，那么你可能早就熟悉了`forEach()`方法。ECMAScript 5向数组增加了`forEach()`来使不使用`for`循环而处理数组中的每个元素更为简单。这个方法在开发者中很受欢迎，因此在sets中也有相同的方法按相同的方式工作。
+forEach()方法被传递了一个接收以下三个参数的回调函数：
+1. set中下一个位置的值
+2. 与第一个参数相同的值
+3. 值所在的set
+set版本的`forEach()`和数组版本的有一个奇怪的差别：回调函数的第一个和第二个参数是相同的。虽然这看起来像是个错误，但却是有足够理由的。
+其它有`forEach()`方法的对象（数组和maps）传递三个参数给它们的回调函数。数组和maps的前两个参数是键值和键（数组为数字索引）。
+然而sets不具备键。ECMAScript 6标准背后的人们可能曾使用过接收两个参数的set版本`forEach()`，但是这使得它与其它两类中的不一致。因此，它们找到了一种保持回调函数相同并接收三个参数的方法：set中的每个值被同时认为是键和值。这样，sets的`forEach()`中第一个和第二个参数总是一样的，使得它与数组和maps中的`forEach()`方法功能一致。
 # 11 - Promises和异步编程
 JavaScript最强大的一部分在于它如何轻易地解决异步编程的问题。作为一种为Web而创建的语言，Javascript从一开始就需要可以响应异步用户交互，例如点击和按键。通过使用回调作为事件的替代方案，Node.js进一步普及了JavaScript中的异步编程。随着越来越多的程序开始使用异步编程，回调和事件已经不足以支撑开发人员想实现的一切。Promises则是该问题的解决方案。
 Promises是异步编程的另一种选择，它的工作形式类似于其它语言中的futures和deferreds（*注：futures和deferreds应该指的是其它编程语言中的异步执行方案*）。一个Promise指定了稍后将要执行的代码段（类似事件、回调），并且明确了代码是否成功完成了任务。根据执行结果成功或失败，可以链式串接多个promise，从而使得代码更易于理解和调试。
