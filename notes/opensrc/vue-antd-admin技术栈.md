@@ -1,0 +1,34 @@
+# vue-antd-admin技术栈
+## 核心技术
+js: ES2015+
+前端框架: vue
+组件库: ant-design-vue
+css预处理: less
+lint: eslint
+编译: babel
+前端路由: vue-router
+前端状态管理: vuex
+脚手架: vue-cli
+国际化: vue-i18n
+包管理: yarn
+版本管理: git
+文档管理: vuepress
+mock: node, mockjs
+
+## 插件/工具库
+http库: axios
+动画库: animate.css
+主题切换: webpack-theme-color-replacer
+复制插件: clipboard
+日期工具库: date-fns
+css媒体查询库: enquire.js
+web代码高亮库: highlight.js
+cookie处理库: js-cookie
+进度条插件: nprogress
+图表插件: viser-vue
+拖拽插件: vuedraggable
+对象合并: deepmerge
+equal判断: fast-deep-equal
+公共样式导入: style-resources-loader
+http请求插件: whatwg-fetch
+github页面部署插件: gh-pages
