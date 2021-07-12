@@ -56,7 +56,68 @@ console.log(person[lastName]);   // "Zakas"
 该例首先使用一个计算对象字面量属性来创建`firstName`symbol属性。下一行将该属性设置为只读。接着，通过`Object.defineProperties()`方法创建了一个只读的`lastName`symbol属性。一个计算对象字面量属性再次被使用，不过这次是作为`Object.defineProperties()`函数调用的第二个参数的一部分。
 虽然symbol可以在任何允许计算属性名的地方使用，你也可能需要一个在不同代码段中共享这些symbol来高效使用它们的系统。
 ## 共享Symbols
+你可能会想要在你代码中不同地方使用相同的symbol。例如，假如在你的应用中有两个不同的对象类型，它们可能使用同一个symbol属性来表示一个特殊的标识符。在文件间或者大范围代码内追踪symbol是困难且容易出错的。这也是为什么ECMAScript提供了一个可以在任何时候访问的全局symbol注册。
+当你想要创建一个用于共享的symbol时，使用`Symbol.for()`方法而不是调用`Symbol()`方法。`Symbol.for()`方法接受一个单独的参数，它为你想创建的symbol的字符串标识符。该参数也被用作该symbol的描述。例如：
+```
+let uid = Symbol.for("uid");
+let object = {};
+
+object[uid] = "12345";
+
+console.log(object[uid]);  // "12345"
+console.log(uid);  // "Symbol(uid)"
+```
+`Symbol.for()`方法首先搜索全局symbol注册中是否已经存在键为`"uid"`的symbol。如果有，该方法返回已经存在的symbol。如果没有，那么创建一个新的symbol并使用指定键注册全局symbol，并返回新的symbol。这说明使用相同的键多次调用`Symbol.for()`将返回同一个symbol，如下：
+```
+let uid = Symbol.for("uid");
+let object = {
+  [uid]: 12345
+};
+
+console.log(object[uid]);  // "12345"
+console.log(uid);   // "Symbol(uid)"
+
+let uid2 = Symbol.for("uid");
+
+console.log(uid === uid2);   // true
+console.log(object[uid2]);   // "12345"
+console.log(uid2);           // "Symbol(uid)"
+```
+在这个例子中，`uid`和`uid2`包含相同的symbol，所以它们可以相互交换。第一次`Symbol.for()`调用创建了symbol，第二次调用从全局symbol注册中获得symbol。
+共享symbol的另一个独特之处在于你可以通过调用`Symbol.keyFor()`来获得关联全局symbol注册中symbol的键。例如：
+```
+let uid = Symbol.for("uid");
+console.log(Symbol.keyFor(uid));  // "uid"
+
+let uid2 = Symbol.for("uid");
+console.log(Symbol.keyFor(uid2));  // "uid"
+
+let uid3 = Symbol("uid");
+console.log(Symbol.keyFor(uid3));  // undefined
+```
+注意`uid`和`uid2`都返回`"uid"`键。symbol uid3不在全局symbol注册中，因此没有和它相关联的键，`Symbol.keyFor()`返回`undefined`。
+全局symbol注册是一个共享环境，正如全局作用域。这表明你无法对什么已经或者并不存在在该环境中做假设。使用symbol键命名空间可以在使用第三方组件时减少命名相同冲突。例如，jQuery代码可能在使用`"jquery."`作为所有键的前缀，如键`"jquery.element"`或类似的。
 ## Symbol强制转换
+类型转换是JavaScript一个独特的部分，该语言在转换一个数据类型为另一个的能力上有很大的灵活性。然而Symbols在强制转换方面并不灵活，因为其它类型缺少对symbol的逻辑相等关系。具体来说，symbol无法被强制转换为字符串或数字，因此，它们不会被意外用作被期许为symbol的属性。
+本章中的例子使用`console.log()`来演示symbol的输出，这因`console.log()`调用symbol的`String()`来创建有效输出而得以实现。你可以直接使用`String()`来获得相同的结果。例如：
+```
+let uid = Symbol.for("uid"),
+    desc = String(uid);
+
+console.log(desc);   // "Symbol(uid)"
+```
+`String()`函数调用`uid.toString()`并返回该symbol的字符串描述。如果你试图将symbol与一个字符串直接相连，那么将抛出一个错误：
+```
+let uid = Symbol.for("uid"),
+    desc = uid + "";    // 错误
+```
+连接`uid`和一个空字符串要求`uid`首先被强制转换为一个字符串。当该强制转换被检测到时将抛出一个错误来避免这样使用它。
+类似地，你无法强制转换symbol为一个数字。所有的算数操作都将在symbol上使用时抛出错误。例如：
+```
+let uid = Symbol.for("uid"),
+    sum = uid / 1;   // 错误
+```
+该例试图使用uid除1，这将导致一个错误。无论是什么算数操作（逻辑操作不会抛出错误，因为所有symbol都被认为是`true`，正如JavaScript中的其它非空值）都将抛出错误。
 ## 获取Symbol属性
 ## 暴露已知Symbols的内部操作
 ### Symbol.hasInstance属性
