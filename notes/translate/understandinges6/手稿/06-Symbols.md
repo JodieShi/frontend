@@ -119,7 +119,39 @@ let uid = Symbol.for("uid"),
 ```
 该例试图使用uid除1，这将导致一个错误。无论是什么算数操作（逻辑操作不会抛出错误，因为所有symbol都被认为是`true`，正如JavaScript中的其它非空值）都将抛出错误。
 ## 获取Symbol属性
-## 暴露已知Symbols的内部操作
+`Object.keys()`和`Object.getOwnPropertyNames()`方法可以获取一个对象上的所有属性名称。前者返回所有可枚举属性名，后者返回所有属性名而不管它是否可枚举。然而为了维持ECMAScript5功能，它们都不返回symbol属性。取而代之，ECMAScript6中新增了`Object.getOwnPropertySymbols()`方法来允许你从对象上获取属性symbols。
+`Object.getOwnPropertySymbols()`的返回值是自身属性symbols的一个数组。例如：
+```
+let uid = Symbol.for("uid");
+let object = {
+  [uid]: "12345"
+};
+
+let symbols = Object.getOwnPropertySymbols(object);
+
+console.log(symbols.length);      // 1
+console.log(symbols[0]);          // "Symbol(uid)"
+console.log(object[symbols[0]]);  // "12345"
+```
+在这段代码中，`object`具备一个名为`uid`的symbol属性。`Object.getOwnPropertySymbols()`返回的数组是一个只含该symbol的数组。
+所有对象开始都没有自身的symbol属性，但是对象可以从它们的原型上继承symbol属性。ECMAScript6预定义了几个这样的属性，使用所谓的众所周知的symbol来实现。
+## 使用众所周知的Symbols暴露内部操作
+ECMAScript5的一个中心主题在于暴露和定义JavaScript中的一些“魔法”部分，即一些开发人员当时无法模仿的部分。ECMAScript6通过暴露更多该语言之前的内部逻辑来延续该传统，主要使用symbol原型属性来定义特定对象的基本行为。
+ECMAScript6有一些被称为*众所周知的symbols*的预定义symbols，它们代表了JavaScript中一些之前被认为是仅内部操作的常见行为。每个众所周知的symbol有一个`Symbol`对象上的属性来表示，例如`Symbol.create`。
+这些众所周知的symbols为：
+* `Symbol.hasInstance` - 一个被`instanceof`用来判断对象继承的方法。
+*` Symbol.isConcatSpreadable` - 一个布尔值，标识`Array.prototype.concat()`应该在当一个集合被作为参数传入`Array.prototype.concat()`时打平该集合中的元素。
+* `Symbol.iterator` - 一个返回迭代器的方法。（迭代器在第八章中。）
+* `Symbol.match` - 一个被`String.prototype.match()`用来比较字符串的方法。
+* `Symbol.replace` - 一个被`String.prototype.replace()`用来替换子字符串的方法。
+* `Symbol.search` - 一个被`String.prototype.search()`用来定位子字符串的方法。
+* `Symbol.species` - 用来创建派生对象的构造函数。（派生对象在第九章中）。
+* `Symbol.split` - 一个被`String.prototype.split()`用来拆分字符串的方法。
+* `Symbol.toPrimitive` - 一个返回对象的原始值表示的方法。
+* `Symbol.toStringTag` - 一个被`Object.prototype.toString()`用来创建对象描述的字符串。
+* `Symbol.unscopables` - 一个属性为不应包含在with语句中的对象属性名称的对象。
+一些常用的众所周知的symbols在接下来几节中讨论，其它的将在本书的剩余部分穿插讨论，以保证上下文的正确性。
+使用众所周知的symbol重写一个定义的方法将改变一个普通对象为奇异对象，因为它改变了一些默认内部行为。它并不会对你的代码造成实际上的影响，它只是改变了标准描述对象的方式。
 ### Symbol.hasInstance属性
 ### Symbol.isConcatSpreadable
 ### Symbol.match, Symbol.replace, Symbol.search, Symbol.split
