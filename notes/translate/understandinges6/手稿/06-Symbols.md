@@ -235,8 +235,108 @@ console.log(messages);          // [ "Hi", "Hello", "world" ]
 本例中的`collection`对象被设置为看起来像一个数组：它有一个`length`属性和两个数值键。`Symbol.isConcatSpreadable`属性被设置为`true`来标识属性值应该作为独立项添加到数组中去。当`collection`被传入`concat()`方法时，结果数组在`"Hi"`元素后有独立的`"Hello"`和`"world"`项。
 你也可以将数组子类的`Symbol.isConcatSpreadable`设置为`false`来阻止它们被`concat()`调用分割。子类将在第八章中讨论。
 ### Symbol.match, Symbol.replace, Symbol.search, Symbol.split
+字符串和正则表达式在JavaScript中一致有着紧密的联系。特别地，字符串类型有几个接受正则表达式为参数的方法：
+* `match(regex)` - 判断给定字符串是否匹配一个正则表达式
+* `replace(regex, replacement)` - 使用`replacement`替换正则表达式匹配项
+* `search(regex)` - 定位字符串中正则表达式匹配的位置
+* `split(regex)` - 在正则表达式匹配处分割字符串为数组
+在ECMAScript6之前，这些方法与正则表达式交互的方式是开发者不可见的，因此没有使用开发者自定义对象去模拟正则表达式的方式。ECMAScript6定义了四个与上述方法对应的symbol，有效地将这种本地行为外包给了`RegExp内`置对象。
+`Symbol.match`，`Symbol.replace`，`Symbol.search`和`Symbol.split` symbol代表了`match()`，`replace()`，`search()`和`split()`方法在第一个正则表达式参数上调用的方法。这四个symbol属性定义在`RegExp.prototype`上，作为字符串方法将使用的默认实现。
+知道这些，你可以创建一个对象，以类似正则表达式的方法与字符串方法一起使用。为了实现它，你可以在代码中使用以下symbol函数：
+* `Symbol.match` - 一个接受一个字符串参数并返回匹配项数组或null（无匹配项）的函数。
+* `Symbol.replace` - 一个接受一个字符串参数和一个替换字符串并返回字符串的函数。
+* `Symbol.search` - 一个接受一个字符串参数并返回匹配项的数字索引或-1（无匹配项）的函数。
+* `Symbol.split` - 一个接受一个字符串参数并返回一个包含匹配项处拆分的字符串片段的数组的函数。
+在对象上定义这些属性的能力使得你可以创建实现了不用正则表达式的模式匹配的对象并在期待正则表达式的方法中使用它们。下面是一个展示实际使用这些symbol的例子：
+```
+// 等效于 /^.{10}$/
+let hasLengthOf10 = {
+  [Symbol.match]: function(value) {
+    return value.length === 10 ? [value] : null;
+  },
+  [Symbol.replace]: function(value, replacement) {
+    return value.length === 10 ? replacement : value;
+  },
+  [Symbol.search]: function(value) {
+    return value.length === 10 ? 0 : -1;
+  },
+  [Symbol.split]: function(value) {
+    return value.length === 10 ? ["", ""] : [value];
+  }
+}
+
+let message1 = "Hello world",      // 11个字符
+    message2 = "Hello John";       // 10个字符
+
+let match1 = message1.match(hasLengthOf10),
+    match2 = message2.match(hasLengthOf10);
+
+console.log(match1);   // null
+console.log(match2);   // ["Hello John"]
+
+let replace1 = message1.replace(hasLengthOf10, "Howdy!"),
+    replace2 = message2.replace(hasLengthOf10, "Howdy!");
+
+console.log(replace1);   // "Hello world"
+console.log(replace2);   // "Howdy!"
+
+let search1 = message1.search(hasLengthOf10),
+    search2 = message2.search(hasLengthOf10);
+
+console.log(search1);   // -1
+console.log(search2);   // 0
+
+let split1 = message1.split(hasLengthOf10),
+    split2 = message2.split(hasLengthOf10);
+
+console.log(split1);   // ["Hello John"]
+console.log(split2);   // ["", ""]
+```
+`hasLength10`对象意在像一个匹配长度为10的字符串的正则表达式一样工作。`hasLength10`的四个方法都通过合适的symbol来实现，接着两个字符串上对应的方法被调用了。第一个字符串，`message1`，有11个字符，因此并不匹配；第二个字符串，`message2`，有10个字符，因此匹配。虽然不是一个正则表达式，`hasLength10`被传入了每个字符串方法并被正确使用，这正是因为这些附加的方法。
+虽然这是一个简单的例子，能够执行比当前正则表达式更复杂的匹配，为自定义模式匹配提供了更多可能。
 ### Symbol.toPrimitive方法
+JavaScript频繁地尝试在应用某些操作符时将对象隐式转换为原始值。例如，当你将一个字符串与对象使用双等号（`==`）操作符进行比较时，对象在比较之前被转换为一个原始值。确切的应使用的原始值之前是一个内部操作，但是ECMAScript6通过`Symbol.toPrimitive`方法暴露了这个值（使其可变）。
+`Symbol.toPrimitive`方法定义在每个标准类型的原型上，它规定了当对象转换为一个原始值时将发生什么。当需要进行一个原始转换时，`Symbol.toPrimitive`被调用，它具有一个单独参数，在标准中被称为`hint`。`hint`参数是三个字符串值之一。如果`hint`是`"number"`，那么`Symbol.toPrimitive`应该返回一个数字。如果`hint`是`"string"`，那么应该返回一个字符串，如果是`"default"`，那么操作符没有类型指定偏向。
+对于多数标准对象来说，数值模式有以下行为，按优先级排序：
+1. 调用`valueOf()`方法，如果结果是原始值，返回它。
+2. 否则，调用`toString()`方法，如果结果是原始值，返回它。
+3. 否则，抛出一个错误。
+类似地，对于多数标准对象，字符串模式有以下优先级：
+1. 调用`toString()`方法，如果结果是原始值，返回它。
+2. 否则，调用`valueOf()`方法，如果结果是原始值，返回它。
+3. 否则，抛出一个错误。
+在多数例子中，标准对象以等效于数值模式的方式对待默认模式（除了`Date`，它的默认模式等效于字符串模式）。通过定义一个`Symbol.toPrimitive`方法，你可以重写这些默认强制转换行为。
+默认模式只在`==`操作符、`+`操作符和单独传给`Date`构造函数作为参数时使用。多数操作符使用字符串或者数值模式。
+为了重写默认转换行为，使用`Symbol.toPrimitive`并给它赋一个函数作为值。例如：
+```
+function Temperature(degrees) {
+  this.degrees = degrees;
+}
+
+Temperature.prototype[Symbol.toPrimitive] = function(hint) {
+  switch (hint) {
+    case "string":
+      return this.degrees + "\u00b0";    // degrees symbol
+
+    case "number":
+      return this.degrees;
+
+    case "default":
+      return this.degrees + " degrees";
+  }
+};
+
+let freezing = new Temperature(32);
+
+console.log(freezing + "!");    // "32 degrees"
+console.log(freezing / 2);      // 16
+console.log(String(freezing));  // "32"
+```
+这段脚本定义了一个`Temperature`构造函数并重写了原型上的`Symbol.toPrimitive`。根据`hint`参数表示字符串、数值或默认模式（`hint`参数由JavaScript引擎填充）返回不同值。在字符串模式下，`Symbol.toPrimitive`方法返回Unicode度数symbol表示的温度。在数值模式下，它简单返回数值，在默认模式下，它在数值后增加单词`"degrees"`。
+每个日志语句触发不同的`hint`参数值。`+`操作符通过设置`hint`为`"default"`触发默认模式，`/`操作符通过设置`hint`为`"number"`触发数值模式，`String()`函数通过设置`hint`为`"string"`触发字符串模式。使三种模式返回不同值时可能的，更常见的是将默认模式设为与字符串或数值模式相同。
 ### Symbol.toStringTag
+JavaScript中最有趣的问题之一曾经是多个全局执行环境可用。这在网页浏览器中一个页面包含了一个iframe时出现，因为页面和iframe由各自的执行环境。在多数案例中，这并不是一个问题，因为数据可以在多个环境中来回传递而不需要担心。在对象在不同环境中传递后试图识别正处理的对象类型时会出现问题。
+这个问题的典型例子为从一个iframe中传递一个数组给所包含的网页或者反过来。在ECMAScript6定义中，iframe和包含页面各自代表一个不同的*域*，即一个Javascript的执行环境。每个域有自己的全局作用域和它的全局对象拷贝。无论数组是在哪个域中创建的，它都无疑时一个数组。然而当它被传递到不同的域时，`instanceof Array`调用将返回`false`，因为数组是通过不同域中的构造函数创建的，Array代表的是当前域中的构造函数。
 #### 一个识别问题的解决方案
 #### ECMAScript6解决方案
 ### Symbol.unscopables
