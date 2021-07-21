@@ -338,6 +338,122 @@ console.log(String(freezing));  // "32"
 JavaScript中最有趣的问题之一曾经是多个全局执行环境可用。这在网页浏览器中一个页面包含了一个iframe时出现，因为页面和iframe由各自的执行环境。在多数案例中，这并不是一个问题，因为数据可以在多个环境中来回传递而不需要担心。在对象在不同环境中传递后试图识别正处理的对象类型时会出现问题。
 这个问题的典型例子为从一个iframe中传递一个数组给所包含的网页或者反过来。在ECMAScript6定义中，iframe和包含页面各自代表一个不同的*域*，即一个Javascript的执行环境。每个域有自己的全局作用域和它的全局对象拷贝。无论数组是在哪个域中创建的，它都无疑时一个数组。然而当它被传递到不同的域时，`instanceof Array`调用将返回`false`，因为数组是通过不同域中的构造函数创建的，Array代表的是当前域中的构造函数。
 #### 一个识别问题的解决方案
+面对这个问题，开发者很快找到了一种识别数组的好方法。它们发现通过在对象上调用标准`toString()`方法，总将返回一个可预测的字符串。因此，许多JavaScript库开始包含了一个类似下面的函数：
+```
+function isArray(value) {
+  return Object.prototype.toString.call(value) === "[object Array]";
+}
+
+console.log(isArray[]);    // true
+```
+它看起来可能有点迂回，但它在各个浏览器中都能很好地识别数组。数组上的`toString()`方法并不适用于识别一个对象因为它返回该对象包含项的字符串表达式。但是`Object.prototype`上的`toString()`方法具有一个怪异行为：它的返回值包含名为`[[Class]]`的内部定义名。开发者可以在对象上使用这个方法来通过对象的数据类型获取JavaScript环境。
+开发者快速意识到，因为没有方法改变这种行为，可以通过相同的方法来区分本地对象和由开发者创建的对象。最重要的例子就是ECMAScript5中的`JSON`对象。
+在ECMAScript5之前，许多开发者使用Douglas Crockford的*json2.js*，它创建了一个全局的`JSON`对象。自从浏览器开始实现`JSON`全局对象，判断全局`JSON`是由JavaScript环境自身提供的还是其它库提供的成为必要。使用我在`isArray()`函数中使用的相同技术，许多开发者创建了类似以下的函数：
+```
+function supportNativeJSON() {
+  return typeof JSON !== "undefined" &&
+      Object.prototype.toString.call(JSON) === "[object JSON]";
+}
+```
+`Object.prototype`的相同特性使得开发者能够跨越iframe界限来识别数组，并提供了一种方式来判断`JSON`是否为本地`JSON`对象。一个非本地`JSON`对象将返回`[object Object]`，而本地版本将返回`[object JSON]`。这种方法成为识别本地对象的实际标准。
 #### ECMAScript6解决方案
+ECMAScript6通过`Symbol.toStringTag` symbol重定义了这种方法。该symbol代表了每个对象上的一个属性，它定义了当`Object.prototype.toString.call()`调用时该创造什么值。对于一个数组，该函数的返回值通过在`Symbol.toStringTag`属性中存储"Array"来解释。
+类似地，你可以为自己的对象定义`Symbol.toStringTag`值：
+```
+function Person(name) {
+  this.name = name;
+}
+
+Person.prototype[Symbol.toStringTag] = "Person";
+
+let me = new Person("Nicholas");
+
+console.log(me.toString());   // "[object Person]"
+console.log(Object.prototype.toString.call(me));   // "[object Person]"
+```
+在这个例子中，`Symbol.toStringTag`属性定义在`Person.prototype`上，为创建字符串表示提供了一个默认行为。由于`Person.prototype`继承了`Object.prototype.toString()`方法，在调用`me.toString()`方法时也使用了`Symbol.toStringTag`返回值。然而，你也可以定义自己的`toString()`方法来支持另一种不同的行为而不去影响`Object.prototype.toString.call()`方法的使用。它可能看起来如下：
+```
+function Person(name) {
+  this.name = name;
+}
+
+Person.prototype[Symbol.toStringTag] = "Person";
+
+Person.prototype.toString = function() {
+  return this.name;
+};
+
+let me = new Person("Nicholas");
+
+console.log(me.toString());   // "Nicholas"
+console.log(Object.prototype.toString.call(me));   // "[object Person]"
+```
+该代码定义了`Person.prototype.toString()`返回`name`属性值。由于`Person`对象不再继承自`Object.prototype.toString()`方法，调用`me.toString()`呈现出了不同的行为。
+除非特别指定，所有对象都从`Object.prototype`继承了`Symbol.toStringTag`。字符串`"Object"`是默认属性值。
+开发者定义的对象可以使用哪些值作为`Symbol.toStringTag`并没有限制。例如，没什么可以阻止你使用`"Array"`作为`Symbol.toStringTag`属性的值，如下：
+```
+function Person(name) {
+  this.name = name;
+}
+
+Person.prototype[Symbol.toStringTag] = "Array";
+
+Person.prototype.toString = function() {
+  return this.name;
+};
+
+let me = new Person("Nicholas");
+
+console.log(me.toString());   // "Nicholas"
+console.log(Object.prototype.toString.call(me));   // "[object Array]"
+```
+代码中调用`Object.prototype.toString.call()`的结果是`"[object Array]"`，与你从一个实际数组获得的结果相同。这强调了`Object.prototype.toString()`不再是一个完全可依赖的识别对象类型的方式。
+改变本地对象的字符串标签也是可以的。只需要为对象原型的`Symbol.toStringTag`赋值，如下：
+```
+Array.prototype[Symbol.toStringTag] = "Magic";
+
+let values = [];
+
+console.log(Object.prototype.toString.call(values));   // "[object Magic]"
+```
+本例中数组的`Symbol.toStringTag`被改写了，表示`Object.prototype.toString()`调用结果为`"[object Magic]"`而不是`"[object Array]"`。虽然我建议不要像这样改变内置对象，该语言中并没有可以阻止这么做的部分。
 ### Symbol.unscopables
+`with`语句是JavaScript中最富有争议的部分之一。最初设计为避免重复地打字。`with`语句后来由于使得代码更难理解，对性能有负面影响且易导致错误而遭到谴责。
+因此，`with`语句在严格模式中并不允许使用。这种限制也影响了类和模块，它们默认为严格模式并且不可设。
+虽然将来的代码无疑不会使用`with`语句，ECMAScript6依旧在非严格模式中支持`with`，作为向后兼容，并且必需找出能让使用`with`的代码可以继续正常工作的方法。
+为了理解这项工作的复杂程度，考虑以下代码：
+```
+let values = [1, 2, 3],
+    colors = ["red", "green", "blue"],
+    color = "black";
+
+with(colors) {
+  push(color);
+  push(...values);
+}
+
+console.log(colors);  // ["red", "green", "blue", "black", 1, 2, 3]
+```
+在这个例子中，`with`语句内部的两次`push()`调用等效于c`olors.push()`，因为`with`语句添加了`push`作为一个本地绑定。`color`引用指向`with`语句外部创建的变量，`values`引用也是一样。
+但是ECMAScript6在数组上增加了一个`values`方法。（`values`方法在第7章"迭代器和生成器"中详细讨论）。这表明在ECMAScript环境中，`with`语句中的`values`引用将不再指向本地变量`values`，而是数组的`values`方法，这将破坏这段代码。这也是`Symbol.unscopables` symbol存在的原因。
+`Symbol.unscopables` symbol在`Array.prototype`上使用，它指示了哪些属性不应该在`with`语句内部创建绑定。当存在时，`Symbol.unscopables`为一个对象，它的键为`with`语句绑定应忽略的标识符，值为`true`来强制执行块。下面为一个数组的`Symbol.unscopables`属性的默认值：
+```
+// 默认内置于ECMAScript6
+Array.prototype[Symbol.unscopables] = Object.assign(Object.create(null), {
+  copyWithin: true,
+  entries: true,
+  fill: true,
+  find: true,
+  findIndex: true,
+  keys: true,
+  values: true
+});
+```
+`Symbol.unscopables`对象在`Object.create(null)`调用时拥有了一个`null`原型，接着包含了ECMAScript6中的所有新的数组方法。（这些方法在第七章"迭代器和生成器"及第九章"数组"中讨论细节）。这些方法的绑定不会在`with`语句内部创建，使得代码可以没有问题地继续执行。
+一般来说，你无需为你的对象定义`Symbol.unscopables`，除非你使用`with`语句，并对你代码库中已有对象进行改变。
 ## 总结
+Symbols为JavaScript中的一种新的原始值，它被用来创建除了引用该symbol外无法访问的属性。
+虽然不是完全私有，这些属性很难意外被改变或重写，因此很适合那些对开发者来说需要一定层级保护的功能。
+你可以为symbols提供描述从而更轻易地识别symbol值。全局symbol注册使得你可以通过使用相同的描述来在代码不同部分使用共享的symbol。这样，相同的symbol可以在多个地方为了同一个原因使用。
+`Object.keys()`和`Object.getOwnPropertyNames()`等方法不会返回symbols，因此ECMAScript6新增了一个名为`Object.getOwnPropertySymbols()`的方法来获取symbol属性。你依旧可以通过调用`Object.defineProperty()`或者`Object.defineProperties()`方法来改变symbol属性。
+众所周知的symbols为标准对象定义了之前仅内部访问的功能，并且使用给了全局可用的symbol常量，如`Symbol.hasInstance`属性。这些symbols在标准中使用`Symbol.`前缀并允许开发者通过一系列方法修改标准对象行为。
