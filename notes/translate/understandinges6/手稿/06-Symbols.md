@@ -233,7 +233,7 @@ console.log(messages.length);   // 3
 console.log(messages);          // [ "Hi", "Hello", "world" ]
 ```
 本例中的`collection`对象被设置为看起来像一个数组：它有一个`length`属性和两个数值键。`Symbol.isConcatSpreadable`属性被设置为`true`来标识属性值应该作为独立项添加到数组中去。当`collection`被传入`concat()`方法时，结果数组在`"Hi"`元素后有独立的`"Hello"`和`"world"`项。
-你也可以将数组子类的`Symbol.isConcatSpreadable`设置为`false`来阻止它们被`concat()`调用分割。子类将在第八章中讨论。
+你也可以将数组子类的`Symbol.isConcatSpreadable`设置为`false`来阻止它们被`concat()`调用分割。子类将在第九章中讨论。
 ### Symbol.match, Symbol.replace, Symbol.search, Symbol.split
 字符串和正则表达式在JavaScript中一致有着紧密的联系。特别地，字符串类型有几个接受正则表达式为参数的方法：
 * `match(regex)` - 判断给定字符串是否匹配一个正则表达式
@@ -435,7 +435,7 @@ with(colors) {
 console.log(colors);  // ["red", "green", "blue", "black", 1, 2, 3]
 ```
 在这个例子中，`with`语句内部的两次`push()`调用等效于c`olors.push()`，因为`with`语句添加了`push`作为一个本地绑定。`color`引用指向`with`语句外部创建的变量，`values`引用也是一样。
-但是ECMAScript6在数组上增加了一个`values`方法。（`values`方法在第7章"迭代器和生成器"中详细讨论）。这表明在ECMAScript环境中，`with`语句中的`values`引用将不再指向本地变量`values`，而是数组的`values`方法，这将破坏这段代码。这也是`Symbol.unscopables` symbol存在的原因。
+但是ECMAScript6在数组上增加了一个`values`方法。（`values`方法在第8章"迭代器和生成器"中详细讨论）。这表明在ECMAScript环境中，`with`语句中的`values`引用将不再指向本地变量`values`，而是数组的`values`方法，这将破坏这段代码。这也是`Symbol.unscopables` symbol存在的原因。
 `Symbol.unscopables` symbol在`Array.prototype`上使用，它指示了哪些属性不应该在`with`语句内部创建绑定。当存在时，`Symbol.unscopables`为一个对象，它的键为`with`语句绑定应忽略的标识符，值为`true`来强制执行块。下面为一个数组的`Symbol.unscopables`属性的默认值：
 ```
 // 默认内置于ECMAScript6
@@ -449,7 +449,7 @@ Array.prototype[Symbol.unscopables] = Object.assign(Object.create(null), {
   values: true
 });
 ```
-`Symbol.unscopables`对象在`Object.create(null)`调用时拥有了一个`null`原型，接着包含了ECMAScript6中的所有新的数组方法。（这些方法在第七章"迭代器和生成器"及第九章"数组"中讨论细节）。这些方法的绑定不会在`with`语句内部创建，使得代码可以没有问题地继续执行。
+`Symbol.unscopables`对象在`Object.create(null)`调用时拥有了一个`null`原型，接着包含了ECMAScript6中的所有新的数组方法。（这些方法在第八章"迭代器和生成器"及第十章"数组"中讨论细节）。这些方法的绑定不会在`with`语句内部创建，使得代码可以没有问题地继续执行。
 一般来说，你无需为你的对象定义`Symbol.unscopables`，除非你使用`with`语句，并对你代码库中已有对象进行改变。
 ## 总结
 Symbols为JavaScript中的一种新的原始值，它被用来创建除了引用该symbol外无法访问的属性。
