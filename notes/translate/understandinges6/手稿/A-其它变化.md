@@ -53,4 +53,65 @@ console.log(Number.isSafeInteger(outside));     // false
 
 解释每个新方法及它们的工作细节超出了本书的范围。但是如果你的应用需要做常见的计算，请确认在自己实现前先检查新的`Math`方法。
 ## Unicode标识符
+ECMAScript6提供了比之前JavaScript版本更好的Unicode支持，它也改变了哪些字符可以被用作标识符。在ECMAScript5中，已经可以使用Unicode转义序列作为标识符。例如：
+```js
+// 在ECMAScript5和6中有效
+var \u0061 = "abc";
+
+console.log(\u0061);       // "abc"
+
+// 等效于
+console.log(a);            // "abc"
+```
+本例中，在`var`语句之后，你可以使用`\u0061`或`a`来访问变量。在ECMAScript6中，你也可以使用Unicode码点转义序列作为标识符，如下：
+```js
+// 在ECMAScript5和6中有效
+var \u{61} = "abc";
+
+console.log(\u{61});       // "abc"
+
+// 等效于
+console.log(a);            // "abc"
+```
+本例只是将`\u0061`替换成它相等的码点。否则，它与前一个例子将完全相同。
+此外，ECMAScript6根据[Unicode Standard Annex #31: Unicode Identifier and Pattern Syntax](http://unicode.org/reports/tr31/)指定了有效的标识符，它给出了如下规则：
+1. 首字符必须是`$`，`_`或任何一个具有`ID_Start`派生核心属性的Unicode符号
+2. 每个随后的字符必须是`$`，`_`，`\u200c`（一个零宽度的非连接符），`\u200d`（一个零宽度的连接符）或任何一个具有`ID_Continue`派生核心属性的Unicode符号。
+
+`ID_Start`和`ID_Continue`派生核心属性在Unicode标识符和模式语法中被定义，作为识别适合作为标识符（如变量和作用域）使用的符号。该标准并非JavaScript专用。
 ## 形式化`__proto__`属性
+即使在ECMAScript5已经结束之前，多个JavaScript引擎已经实现了一个名为`__proto__`的自定义属性，它可以被用作获取和设置`[[Prototype]]`属性。因此`__proto__`是`Object.getPrototypeOf()`和`Object.setPrototypeOf()`方法的早期先导。指望所有JavaScript引擎移除这个属性并不实际（已有广泛使用的JavaScript库使用了`__proto__`），因此ECMAScript6也形式化了`__proto__`行为。但是形式化出现在ECMA-262的附录B中，与以下警告一起：
+> 这些特性并不认为是ECMAScript核心语言的一部分。编程人员在编写新ECMAScript代码时不应该使用或假设这些特性或行为的存在。不鼓励ECMAScript具体实现去实现这些特性，除非这些实现是网页浏览器的一部分或者需要运行网页浏览器遇到的相同遗留ECMAScript代码。
+ECMAScript标准推荐使用`Object.getPrototypeOf()`和`Object.setPrototypeOf(`)，因为`__proto__`具有以下特性：
+1. 你只能在一个对象字面量中一次指定`__proto__`。如果你指定两个`__proto__`属性，那么将抛出一个错误。这是唯一一个具有该限制的对象字面量属性。
+2. `["__proto__"]`计算属性按一个常规属性工作，它不会设置或返回当前对象的属性。所有与对象字面量属性相关的规则都应用这个形式，不同于有异常情况非计算形式。
+
+虽然你应该避免使用`__proto__`属性，标准定义它的方法却很有意思。在ECMAScript6引擎中，`Object.prototype.__proto__`被定义为一个访问器属性，它的get方法调用`Object.getPrototypeOf()`而set方法调用`Object.setPrototypeOf(`)方法。这使得使用`__proto__`和`Object.getPrototypeOf()`/`Object.setPrototypeOf(`)没有实际差别，除了`__proto__`允许你直接设置一个对象字面量的原型。下面为它如何工作：
+```js
+let person = {
+  getGreeting() {
+    return "Hello";
+  }
+};
+
+let dog = {
+  getGreeting() {
+    return "Woof";
+  }
+};
+
+// 原型为person
+let friend = {
+  __proto__: person
+};
+console.log(friend.getGreeting());                       // "Hello"
+console.log(Object.getPrototypeOf(friend) === person);   // true
+console.log(friend.__proto__ === person);                // true
+
+// 设置原型为dog
+friend.__proto__ = dog;
+console.log(friend.getGreeting());                       // "Woof"
+console.log(Object.getPrototypeOf(friend) === dog);      // true
+console.log(friend.__proto__ === dog);                   // true
+```
+无需调用`Object.create()`来创建`friend`对象，本例创建了一个标准对象字面量，并赋了一个值给`__proto__`属性。而当使用`Object.create()`方法来创建一个对象时，你需要为任何额外的对象属性指定完整的属性描述符。
