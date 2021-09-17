@@ -11,7 +11,7 @@ console.log(Number.isInteger(25.1));  // false
 ```
 在本代码中，`Number.isInteger`为`25`和`25.0`都返回`true`，虽然后者看起来像是一个浮点数。在JavaScript中，简单地向数字添加小数点不会自动使其成为浮点数。由于`25.0`实际上就是`25`，它被作为一个整数存储。然而数字`25.1`被作为浮点数存储，因为有一个分数值。
 ### 安全整数
-IEEE 754只能准确表示-2^53和2^53之间的数字，而在这个“安全”范围外，二进制表示最终被重用于多个数值。这表明JavaScript只能在问题变得明显之前安全地表示IEEE 754范围内的数字。例如，考虑以下代码：
+IEEE 754只能准确表示-2^53 和 2^53之间的数字，而在这个“安全”范围外，二进制表示最终被重用于多个数值。这表明JavaScript只能在问题变得明显之前安全地表示IEEE 754范围内的数字。例如，考虑以下代码：
 ```js
 console.log(Math.pow(2, 53));           // 9007199254740992
 console.log(Math.pow(2, 53));           // 9007199254740992
@@ -32,7 +32,7 @@ console.log(Number.isSafeInteger(outside));     // false
 多数时候，在JavaScript中进行整数算术或比较时，你只想处理安全整数，因此，使用`Number.isSafeInteger()`作为输入校验的一部分将是一个好主意。
 ## 新Math方法
 对于游戏和图形的重视使得ECMAScript6在JavaScript中包含了类型化数组，也实现了JavaScript引擎更高效地处理数学计算。但是像asm.js这样的优化策略工作在一个JavaScript子集上来提升性能，需要更多的信息来以尽可能快的方式执行计算。例如，知道数字是否应该被认为是32位整数或64位浮点数对于基于硬件的操作来说很重要，它比基于软件的操作更快。
-因此，ECMAScript6位`Math对`象增加了几个方法来提升常规算术计算的速度。提升常规计算也提升了执行很多计算的应用的全局速度，如图形程序。新的方法列举如下：
+因此，ECMAScript6位`Math`对象增加了几个方法来提升常规算术计算的速度。提升常规计算也提升了执行很多计算的应用的全局速度，如图形程序。新的方法列举如下：
 * `Math.acosh(x)` 返回`x`的反双曲余弦值。
 * `Math.asinh(x)` 返回`x`的反双曲正弦值。
 * `Math.atanh(x)` 返回`x`的反双曲正切值。
@@ -82,6 +82,7 @@ console.log(a);            // "abc"
 ## 形式化`__proto__`属性
 即使在ECMAScript5已经结束之前，多个JavaScript引擎已经实现了一个名为`__proto__`的自定义属性，它可以被用作获取和设置`[[Prototype]]`属性。因此`__proto__`是`Object.getPrototypeOf()`和`Object.setPrototypeOf()`方法的早期先导。指望所有JavaScript引擎移除这个属性并不实际（已有广泛使用的JavaScript库使用了`__proto__`），因此ECMAScript6也形式化了`__proto__`行为。但是形式化出现在ECMA-262的附录B中，与以下警告一起：
 > 这些特性并不认为是ECMAScript核心语言的一部分。编程人员在编写新ECMAScript代码时不应该使用或假设这些特性或行为的存在。不鼓励ECMAScript具体实现去实现这些特性，除非这些实现是网页浏览器的一部分或者需要运行网页浏览器遇到的相同遗留ECMAScript代码。
+
 ECMAScript标准推荐使用`Object.getPrototypeOf()`和`Object.setPrototypeOf(`)，因为`__proto__`具有以下特性：
 1. 你只能在一个对象字面量中一次指定`__proto__`。如果你指定两个`__proto__`属性，那么将抛出一个错误。这是唯一一个具有该限制的对象字面量属性。
 2. `["__proto__"]`计算属性按一个常规属性工作，它不会设置或返回当前对象的属性。所有与对象字面量属性相关的规则都应用这个形式，不同于有异常情况非计算形式。
