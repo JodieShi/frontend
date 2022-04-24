@@ -149,3 +149,137 @@ state可以看作是私有的，除了设置并拥有它的组件，其它组件
 #### 阻止组件渲染
 在组件的render函数中返回null。
 ### 列表和keys
+#### 循环渲染多个组件
+使用`map()`函数
+#### keys
+未明确指定时React默认使用索引号为keys。
+keys在就近数组上下文（兄弟节点）中生效。
+keys在兄弟节点中必须是唯一的，但无需是全局唯一的。
+keys不会作为属性传递。
+### 表单
+#### 受控组件
+#### textarea标签
+在React中，文本值为标签的value属性值。
+#### select标签
+在React中，选中值为根select标签的value属性值。
+设置multiple值为true并传入数组为value值，则select可实现多选。
+#### 文件输入标签
+在React中，它是一个非受控组件。
+#### 处理多个输入
+为每个输入元素添加`name`属性，并根据`event.target.name`来进行相应操作。
+#### null值受控输入
+将`value`设为`undefined`或`null`将导致受控组件可编辑。
+#### 受控组件替代品
+[非受控组件](https://reactjs.org/docs/uncontrolled-components.html)
+#### 成熟解决方案
+[Formik](https://formik.org/)
+#### 状态提升
+将共享状态提升至最近的共同祖先组件。
+```ts
+const scaleNames = {
+  c: 'Celsius',
+  f: 'Fahrenheit'
+};
+
+class TemperatureInput extends React.Component {
+  // temperature, scale接受自父组件
+  constructor(props) {
+    super(props);
+    this.handleChange = this.handleChange.bind(this);
+  }
+
+  handleChange(e) {
+    this.props.onTemperatureChange(e.target.value);
+  }
+
+  render() {
+    const temperature = this.props.temperature;
+    const scale = this.props.scale;
+    return (
+      <fieldset>
+        <legend>Enter temperature in {scaleNames[scale]}: </legend>
+        <input value={temperature}
+               onChange={this.handleChange} />
+      </fieldset>
+    )
+  }
+}
+
+class BoilingVerdict extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+
+  render() {
+    if (this.props.celsius >= 100) {
+      return <p>The water would boil.</p>
+    }
+      return <p>The water would not boil.</p>
+  }
+}
+
+const toCelsius = (fahrenheit) => {
+  return (fahrenheit - 32) * 5 / 9;
+};
+const toFahrenheit = (celsius) => {
+  return (celsius * 9 / 5) + 32;
+};
+const tryConvert = (temperature, convert) => {
+  const input = parseFloat(temperature);
+  if (Number.isNaN(input)) {
+    return '';
+  }
+  const output = convert(input);
+  const rounded = Math.round(output * 1000) / 1000;
+  return rounded.toString();
+};
+
+class Calculator extends React.Component {
+  // 将temperature提升到父组件中，并通过props向下传给子组件
+  constructor(props) {
+    super(props);
+    this.handleCelsiusChange = this.handleCelsiusChange.bind(this);
+    this.handleFahrenheitChange = this.handleFahrenheitChange.bind(this);
+    this.state = {temperature: '', scale: 'c'};
+  }
+
+  handleCelsiusChange(temperature) {
+    this.setState({scale: 'c', temperature})
+  }
+  handleFahrenheitChange(temperature) {
+    this.setState({scale: 'f', temperature})
+  }
+
+  render() {
+    const scale = this.state.scale;
+    const temperature = this.state.temperature;
+    const celsius = scale === 'f' ? tryConvert(temperature, toCelsius) : temperature;
+    const fahrenheit = scale === 'c' ? tryConvert(temperature, toFahrenheit) : temperature;
+    return (
+      <div>
+        <TemperatureInput
+          scale="c"
+          temperature={celsius}
+          onTemperatureChange={this.handleCelsiusChange} />
+        <TemperatureInput
+          scale="f"
+          temperature={fahrenheit}
+          onTemperatureChange={this.handleFahrenheitChange} />
+        <BoilingVerdict celsius={parseFloat(celsius)} />
+      </div>
+    );
+  }
+}
+```
+### 组合与继承
+#### 包含关系
+内部包含块：通过特殊属性`props.children`传递。
+多个块：自定义属性传递。
+#### 特例关系
+属性传递
+### React哲学
+1. 组件层级拆分
+2. 静态版本构建
+3. 明确最小UI State集
+4. 明确State位置
+5. 添加反向数据流
