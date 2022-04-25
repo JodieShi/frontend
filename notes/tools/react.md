@@ -283,3 +283,250 @@ class Calculator extends React.Component {
 3. 明确最小UI State集
 4. 明确State位置
 5. 添加反向数据流
+## 高级
+### 无障碍
+#### 标准
+[wcag](https://www.w3.org/WAI/intro/wcag)
+[wai-aria](https://www.w3.org/WAI/intro/aria)
+#### 语义化html
+#### 无障碍表单
+**标记**
+**错误提醒**
+#### 焦点控制
+**键盘焦点，焦点轮廓** 在只有键盘的环境下可以正常工作，也不要去除焦点轮廓
+**内容跳过** 跳转链接，跳过导航段落，地标元素
+**程序控制焦点** 使用DOM元素的Refs
+#### 鼠标和指针事件
+#### 复杂部件
+#### 其它因素
+**设置语言**
+**设置标题**
+**色彩对比度**
+### 代码分割
+#### 打包
+#### 代码分割
+**import()动态引入**
+**React.lazy** 只支持默认导出
+#### 基于路由的代码分割
+React Router
+#### 命名导出
+### Context
+组件间共享值，“全局”数据，如当前用户、主题、语言等。
+#### 何时使用
+在应用中全局需要。
+示例：
+```ts
+// 为主题创建一个context，默认值为'light'
+const ThemeContext = React.createContext('light');
+
+// 使用Provider传递
+class App extends React.component {
+  constructor(props) {
+    super(props);
+  }
+
+  render() {
+    return (
+      <ThemeContext.Provider value="dark">
+        <Toolbar />
+      </ThemeContext>
+    )
+  }
+}
+
+// 子组件无需从props中接收该属性
+function Toolbar() {
+  return (
+    <div>
+      <ThemeButton></ThemeButton>
+    </div>
+  )
+}
+
+// 后代组件可访问该Context数据
+class ThemeButton extends React.component {
+  constructor(props) {
+    super(props);
+  }
+
+  static contextType = ThemeContext;
+  render() {
+    return <Button theme={this.context} />;
+  }
+}
+```
+#### API
+```ts
+// React.createContext：创建Context对象，参数：默认值
+const MyContext = React.createContext(defaultValue);
+
+// Context.Provider：value值提供，value变化时，消费组件都会重新渲染
+<MyContext.Provider value={/* value */}></MyContext.Provider>
+
+// Class.contextType：赋值为一个Context对象后可通过this.context来消费最近的Context值
+// 可在组件各生命周期中访问
+class MyClass extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+
+  componentDidMount() {
+    let value = this.context;
+    // ...
+  }
+  componentDidUpdate() {
+    let value = this.context;
+    // ...
+  }
+  componentWillUnmount() {
+    let value = this.context;
+    // ...
+  }
+  render() {
+    let value = this.context;
+    // ...
+  }
+}
+MyClass.contextType = MyContext;
+
+// Context.Consumer：消费组件，订阅context变更
+<Context.Consumer>
+  {value => /* 渲染内容 */}
+</Context.Consumer>
+
+// Context.displayName：React DevTools中显示的Context名
+MyContext.displayName = 'MyDisplayName';
+<MyContext.Provider>   // DevTools中："MyDisplayName.Provider"
+<MyContext.Consumer>   // DevTools中："MyDisplayName.Consumer"
+```
+#### 示例
+##### 动态Context
+##### 嵌套组件中更新Context
+##### 消费多个Context
+嵌套，每个消费组件都须是独立节点。
+```ts
+// Provider
+<ThemeContext.Provider value={theme}>
+  <UserContext.Provider value={user}>
+    <Layout />
+  </UserContext.Provider>
+</ThemeContext.Provider>
+
+
+// Consumer
+<ThemeContext.Consumer >
+  {(theme) => (
+    <UserContext.Consumer>
+      {(user) => (
+        {/*  */}
+      )}
+    </UserContext.Consumer>
+  )}
+</ThemeContext.Consumer>
+```
+### 错误边界
+捕获并打印子组件中JS错误并渲染备用UI的React组件。
+作用范围：渲染期间、生命周期方法、组件树构造函数。
+无法捕获的场景：
+- 事件处理
+- 异步回调
+- ssr
+- 自身抛出的错误
+实现：在组件class中定义`static getDerivedStateFromError()`或`componentDidCatch()`。前者用来渲染备用UI，后者用来打印错误信息。
+#### 未捕获错误新行为
+React16开始，未被错误边界捕获的错误将导致整个React组件树被卸载。
+#### vs try/catch
+### Refs转发
+#### 转发refs到DOM组件
+```ts
+// 通过ref参数传递
+const FancyButton = React.forwardRef((props, ref) => (
+  // 通过ref接收
+  <button ref={ref} className="FancyButton">
+    {props.children}
+  </button>
+));
+
+
+// 创建ref并赋值给ref变量
+const ref = React.createRef();
+// 通过ref传给FancyButton
+<FancyButton ref={ref}>click me.</FancyButton>
+```
+挂载完成后，ref.current指向`<button>`这个DOM节点。
+#### 高阶组件中转发refs
+使用`React.forwardRef`将refs转发到内部组件。
+#### 在DevTools中显示自定义名称
+- 命名渲染函数
+- 设置函数displayName
+### Fragments
+返回多个元素，而无需添加新的DOM节点，示例：
+```ts
+class Columns extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+
+  render() {
+    return (
+      <React.Fragment>
+        <td>1</td>
+        <td>2</td>
+      </React.Fragment>
+    );
+  }
+}
+
+class Table extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+
+  render() {
+    return (
+      <table>
+        <tr>
+          <Columns />
+        </tr>
+      </table>
+    );
+  }
+}
+```
+简写语法：`<></>`
+唯一可传递给Fragment的属性：key。
+### 高阶组件（HOC，Higher Order Components）
+高阶组件为参数是组件，返回值为新组件的函数。
+```ts
+const EnhancedComponent = higherOrderComponent(WrappedComponent);
+```
+#### 约定：将不相关的props传递给被包裹元素
+```js
+render() {
+  // extraProps：无需透传的属性
+  // passThroughProps：剩余属性，将透传
+  const { extraProps, ...passThroughProps } = this.props;
+
+  const injectedProp = someStateOrInstanceMethod;
+
+  return (
+    <WrappedComponent injectedProp={injectedProp} {...passThroughProps} />
+  )
+}
+```
+### 第三方协同
+### 深入JSX
+JSX可以看作React.createElement(component, props, ...children)语法糖。
+```ts
+<MyButton color='blue' shadowSize={2}>
+  Click Me.
+</MyButton>
+
+// 等同于
+React.createElement(
+  MyButton,
+  { color: 'blue', shadowSize: 2 },
+  'Click Me'
+);
+```
+### 性能优化
