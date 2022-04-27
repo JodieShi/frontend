@@ -530,3 +530,103 @@ React.createElement(
 );
 ```
 ### 性能优化
+- **使用生产版本**
+- **使用构建工具**
+- **使用开发者工具**
+- **长列表虚拟滚动**
+- **渲染优化** 覆写`shouldComponentUpdate`生命周期方法
+### Portals
+一种将子节点渲染到父组件以外DOM节点的方案。
+```js
+ReactDOM.createPortal(child, container);
+```
+#### 通过Portal进行事件冒泡
+从portal内部触发的事件将沿React树向上冒泡，即使它们不是其DOM树上的祖先。
+### Profiler API
+```js
+// 一个Profiler组件接收两个prop：id，onRender回调
+render(
+  <App>
+    <Profiler id="Navigation" onRender={callback}>
+      <Navigation {...props}></Navigation>
+    </Profiler>
+  </App>
+)
+```
+#### onRender回调
+```js
+function onRenderCallback(
+  id,                // 发生提交的Profiler树的id
+  phase,             // 刚加载：mount；重渲染：update
+  actualDuration,    // 本次更新committed花费的渲染时长
+  baseDuration,      // 估计不使用memoization的情况下渲染整棵子树需要的时间
+  startTime,         // 本次更新中React开始渲染的时间
+  commitTime,        // 本次更新中React committed的时间
+  interactions       // 本次更新的interactions的集合
+) {
+  // 具体操作
+}
+```
+### 不使用ES6
+#### React类创建
+引入create-react-class模块
+```js
+var createReactClass = require('create-react-class');
+var Greeting = createReactClass({
+  render: function() {
+    return <h1>hello, {this.props.name}</h1>
+  }
+})
+```
+#### 声明默认props
+通过`getDefaultProps`函数声明
+```js
+var Greeting = createReactClass({
+  getDefaultProps: function() {
+    return {
+      name: 'Fa'
+    };
+  }
+});
+```
+#### 设置初始State
+通过`getInitialState`函数设置
+```js
+var Counter = createReactClass({
+  getInitialState: function() {
+    return {count: this.props.initialCount};
+  }
+})
+```
+#### 自动绑定
+`createReactClass()`将自动绑定所有方法：
+```js
+var sayHello = createReactClass({
+  getInitialState: function() {
+    return {message: 'hello'};
+  },
+
+  handleClick: function() {
+    alert(this.state.message);
+  },
+
+  render: function(params) {
+    return (
+      <button onClick={this.handleClick}>say hello</button>
+    )
+  }
+})
+```
+#### Mixins
+### 不使用JSX
+使用原始`React.createElement()`语法
+### Reconciliation
+#### 设计动机
+关于diff的启发式算法：
+- 两个不同类型的元素会产生不同的树
+- 可以通过`key`属性来暗示哪些子元素在不同的渲染下保持稳定
+#### Diffing算法
+- 对比不同类型的元素
+- 对比相同类型的DOM元素
+- 对比相同类型的组件元素
+
