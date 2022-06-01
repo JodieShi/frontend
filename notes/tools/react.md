@@ -630,3 +630,221 @@ var sayHello = createReactClass({
 - 对比相同类型的DOM元素
 - 对比相同类型的组件元素
 
+## Hook
+### Hook规则
+### React内置Hook
+**useState** 返回state及更新state的函数。
+```ts
+// 基本用法
+const [state, setState] = useState(initialState);
+setState(newState);
+
+// 函数式更新
+setState(prevState => getNewStateFunc(prevState));
+
+// 对象合并
+const [state, setState] = useState({});
+setState(prevState => {
+  return {...prevState, ...updatedValues};
+});
+```
+**useEffect** 接收一个包含命令式，且可能有副作用代码的函数。该函数返回值为清除函数。
+```ts
+// 基本形式
+useEffect(() => {
+  effect
+  return () => {
+    cleanup
+  }
+}, [input])
+
+// 实例
+useEffect(() => {
+  // 订阅
+  const subscription = props.source.subscribe();
+  return () => {
+    // 清除订阅
+    subscription.unsubscribe()
+  };
+});
+
+// 条件执行
+useEffect(() => {
+  () => {
+    const subscription = props.source.subscribe();
+    return () => {
+      // 清除订阅
+      subscription.unsubscribe();
+    };
+  },
+  [props.source],
+);
+```
+执行时机：浏览器完成布局与绘制后延迟调用useEffect函数。
+依赖数组应包含effect中使用的所有外部作用域中会发生变化的变量。
+**useContext** 接收一个context对象并返回该context的当前值。
+```ts
+const themes = {
+  light: {
+    foreground: "#000000",
+    background: "#eeeeee"
+  },
+  dark: {
+    foreground: "#ffffff",
+    background: "#222222"
+  }
+};
+
+const ThemeContext = React.createContext(themes.light);
+
+function App() {
+  return (
+    <ThemeContext.Provider value={themes.dark}>
+      <Toolbar />
+    </ThemeContext.Provider>
+  );
+}
+
+function Toolbar(props) {
+  return (
+    <div>
+      <ThemedButton />
+    </div>
+  )
+}
+
+function ThemedButton() {
+  const theme = useContext(ThemeContext);
+  return (
+    <button style={{ background: theme.background, color: theme.foreground }}>
+      styled by theme context
+    </button>
+  )
+}
+```
+**useReducer** useState替代方案，接收形如(state, action) => newState的reducer函数，返回当前state及dispatch方法。
+```ts
+// 基本用法
+const [state, dispatch] = useReducer(reducer, initialArg, init);
+
+// 实例
+const initialState = { count: 0 };
+function reducer(state, action) {
+  switch (action.type) {
+    case 'increment':
+      return {count: state.count - 1};
+    case 'decrement':
+      return {count: state.count + 1};
+    default:
+      throw new Error()
+  }
+}
+
+function Counter() {
+  const [state, dispatch] = useReducer(reducer, initialState)
+  return (
+    <>
+      Count: {state.count}
+      <button onClick={() => dispatch({type: 'decrement'})}>-</button>
+      <button onClick={() => dispatch({type: 'increment'})}>+</button>
+    </>
+  );
+}
+
+// 惰性初始化：传入init函数
+function init(initialCount) {
+  return {count: initialCount};
+}
+function reducer(state, action) {
+  switch (action.type) {
+    case 'increment':
+      return {count: state.count - 1};
+    case 'decrement':
+      return {count: state.count + 1};
+    case 'reset':
+      return {count: action.payload};
+    default:
+      throw new Error();
+  }
+}
+
+function Counter(initialCount) {
+  const [state, dispatch] = useReducer(reducer, initialCount, init);
+  return (
+    <>
+      Count: {state.count}
+      <button onClick={() => dispatch({type: 'reset', payload: initialCount})}>Reset</button>
+      <button onClick={() => dispatch({type: 'decrement'})}>-</button>
+      <button onClick={() => dispatch({type: 'increment'})}>+</button>
+    </>
+  );
+}
+```
+**useCallback** 返回一个memoized回调函数。
+```ts
+// useCallback(fn, deps)
+
+const memoizedCallback = useCallback(
+  () => {
+    doSomething()
+  },
+  [a, b],
+);
+```
+**useMemo** 返回一个memoized值。传入“创建”函数和依赖项，仅在依赖项改变时才重新计算memoized值。
+```ts
+const memoizedValue = useMemo(
+  () => computeExpensiveValue(a, b),
+  [a, b]
+);
+```
+传入useMemo的函数将在渲染期间执行。
+**useRef** 返回一个可变ref对象，其.current属性初始化为传入的参数，返回的ref对象在组件的整个生命周期内存在。
+```ts
+function TextInputWithFocusButton() {
+  const inputEl = useRef(null);
+
+  const onButtonClick = () => {
+    inputEl.current.focus();
+  }
+
+  return (
+    <>
+      <input ref={inputEl} type="text" />
+      <button onClick={onButtonClick}>Focus the input</button>
+    </>
+  );
+}
+```
+它适用于所有变量而不仅仅是组件的ref属性值。
+**useImperativeHandle** 可以让你在使用ref时自定义暴露给父组件的实例值，需结合forwardRef一起使用。
+```ts
+function FancyInput(props, ref) {
+  const inputRef = useRef();
+  useImperativeHandle(ref, () => (
+    {
+      focus: () => {
+        inputRef.current.focus();
+      }
+    }));
+  return <input ref={inputRef} ... />;
+}
+
+FancyInput = forwardRef(FancyInput);
+// 父组件<FancyInput ref={inputRef} />可以调用inputRef.current.focus()
+```
+**useLayoutEffect** 函数签名与useEffect相同，但是执行时机为所有DOM变更后同步调用effect。
+**useDebugValue** 用于在React开发者工具中显示自定义hook标签。
+```ts
+function useFriendStatus(friendID) {
+  const [isOnline, setIsOnline] = useState(null);
+
+  // ...
+
+  // 在开发者工具中的这个 Hook 旁边显示标签
+  // e.g. "FriendStatus: Online"
+  useDebugValue(isOnline ? 'Online' : 'Offline');
+
+  return isOnline;
+}
+```
